@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { sendMessage } from "@/lib/telegram";
 import { transcribeAudio } from "@/lib/groq";
 import { runAgent } from "@/lib/agent";
+import { getSessionHistory, addToSession } from "@/lib/session";
 import type { TelegramUpdate } from "@/lib/types";
 
 // Vercel serverless function timeout (seconds).
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
     const chatId = update.message.chat.id;
     const text = update.message.text;
     const voice = update.message.voice;
+    const sessionId = `telegram:${chatId}`;
 
     let userMessage: string | null = null;
 
@@ -40,9 +42,18 @@ export async function POST(request: Request) {
     }
 
     if (userMessage) {
-      // Send to LLM and reply using the agent loop (Phase 4)
+      // Get conversation history for this Telegram chat
+      const history = getSessionHistory(sessionId);
+
+      // Add user message to session
+      addToSession(sessionId, { role: "user", content: userMessage });
+
       try {
-        const reply = await runAgent(userMessage);
+        const reply = await runAgent(userMessage, history);
+
+        // Add assistant reply to session
+        addToSession(sessionId, { role: "assistant", content: reply });
+
         await sendMessage(chatId, reply);
       } catch (error) {
         console.error("LLM error:", error);

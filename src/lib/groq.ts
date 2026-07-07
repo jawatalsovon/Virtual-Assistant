@@ -58,3 +58,35 @@ export async function transcribeAudio(fileId: string): Promise<string> {
   const result = await transcriptionRes.json();
   return result.text;
 }
+
+/**
+ * Transcribe a raw audio buffer (e.g., from Web MediaRecorder).
+ */
+export async function transcribeAudioBuffer(buffer: ArrayBuffer, mimeType: string = "audio/webm"): Promise<string> {
+  const formData = new FormData();
+  formData.append(
+    "file",
+    new Blob([buffer], { type: mimeType }),
+    "voice.webm"
+  );
+  formData.append("model", "whisper-large-v3");
+
+  const transcriptionRes = await fetch(
+    "https://api.groq.com/openai/v1/audio/transcriptions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+      },
+      body: formData,
+    }
+  );
+
+  if (!transcriptionRes.ok) {
+    const err = await transcriptionRes.text();
+    throw new Error(`Groq transcription failed: ${err}`);
+  }
+
+  const result = await transcriptionRes.json();
+  return result.text;
+}

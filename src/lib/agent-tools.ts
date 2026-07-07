@@ -1,4 +1,4 @@
-import { getUnreadEmails } from "./gmail";
+import { getUnreadEmails, sendEmail } from "./gmail";
 import { getTodaySchedule, getUpcomingEvents, createEvent } from "./calendar";
 
 // Tool definitions for the LLM
@@ -55,31 +55,53 @@ export const tools = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "sendEmail",
+      description: "Send an email from Dr. Mehjabeen's Gmail account. IMPORTANT: Before calling this tool, you MUST first show the user the draft email (to, subject, body) in your response and ask for confirmation. Only call this tool AFTER the user confirms.",
+      parameters: {
+        type: "object",
+        properties: {
+          to: { type: "string", description: "Recipient email address" },
+          subject: { type: "string", description: "Email subject line" },
+          body: { type: "string", description: "Email body text" },
+        },
+        required: ["to", "subject", "body"],
+      },
+    },
+  },
 ];
 
 // Tool router
-export async function executeToolCall(name: string, args: any): Promise<any> {
+export async function executeToolCall(name: string, args: Record<string, unknown>): Promise<unknown> {
   console.log(`Executing tool: ${name}`, args);
   try {
     switch (name) {
       case "getUnreadEmails":
-        return await getUnreadEmails(args.maxResults || 5);
+        return await getUnreadEmails((args.maxResults as number) || 5);
       case "getTodaySchedule":
         return await getTodaySchedule();
       case "getUpcomingEvents":
-        return await getUpcomingEvents(args.days || 3);
+        return await getUpcomingEvents((args.days as number) || 3);
       case "createEvent":
         return await createEvent({
-          title: args.title,
-          startTime: args.startTime,
-          endTime: args.endTime,
-          description: args.description,
+          title: args.title as string,
+          startTime: args.startTime as string,
+          endTime: args.endTime as string,
+          description: args.description as string,
         });
+      case "sendEmail":
+        return await sendEmail(
+          args.to as string,
+          args.subject as string,
+          args.body as string,
+        );
       default:
         return { error: `Unknown tool: ${name}` };
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Tool execution error [${name}]:`, error);
-    return { error: error.message };
+    return { error: error instanceof Error ? error.message : "Unknown error" };
   }
 }

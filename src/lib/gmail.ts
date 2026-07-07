@@ -52,3 +52,45 @@ export async function getUnreadEmails(maxResults = 10): Promise<EmailSummary[]> 
     throw new Error("Failed to fetch emails");
   }
 }
+
+/**
+ * Send an email from Dr. Mehjabeen's Gmail account.
+ */
+export async function sendEmail(to: string, subject: string, body: string): Promise<{ success: boolean; messageId: string }> {
+  const auth = getAuthClient();
+  const gmail = google.gmail({ version: "v1", auth });
+
+  try {
+    // Construct the RFC 2822 formatted email
+    const emailLines = [
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      `Content-Type: text/plain; charset="UTF-8"`,
+      "",
+      body,
+    ];
+    const rawMessage = emailLines.join("\r\n");
+
+    // Base64url encode the message
+    const encodedMessage = Buffer.from(rawMessage)
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+
+    const res = await gmail.users.messages.send({
+      userId: "me",
+      requestBody: {
+        raw: encodedMessage,
+      },
+    });
+
+    return {
+      success: true,
+      messageId: res.data.id || "unknown",
+    };
+  } catch (error) {
+    console.error("Error sending email:", error);
+    throw new Error("Failed to send email");
+  }
+}

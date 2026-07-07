@@ -1,5 +1,5 @@
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY!;
-const LLM_MODEL = process.env.LLM_MODEL || "meta-llama/llama-4-scout";
+const LLM_MODEL = process.env.LLM_MODEL || "deepseek/deepseek-v4-flash";
 
 const SYSTEM_PROMPT = `You are the personal AI assistant for Dr. Melita Mehjabeen.
 
@@ -23,6 +23,22 @@ interface ChatMessage {
 }
 
 /**
+ * Helper to retry fetch requests on 429 Too Many Requests errors.
+ */
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    const res = await fetch(url, options);
+    if (res.status !== 429) {
+      return res;
+    }
+    console.warn(`Rate limit hit (429). Retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    delay *= 2; // exponential backoff
+  }
+  return fetch(url, options);
+}
+
+/**
  * Send a message to the LLM via OpenRouter and get a response.
  */
 export async function chat(userMessage: string): Promise<string> {
@@ -31,7 +47,7 @@ export async function chat(userMessage: string): Promise<string> {
     { role: "user", content: userMessage },
   ];
 
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const res = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENROUTER_API_KEY}`,

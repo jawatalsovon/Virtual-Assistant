@@ -19,8 +19,8 @@ export async function GET() {
       emails,
       schedule,
     });
-  } catch (error: any) {
-    console.error("Test failed:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    console.error("Test Google API error:", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
 }
