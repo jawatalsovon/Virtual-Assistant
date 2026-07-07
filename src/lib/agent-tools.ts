@@ -1,5 +1,7 @@
 import { getUnreadEmails, sendEmail } from "./gmail";
 import { getTodaySchedule, getUpcomingEvents, createEvent } from "./calendar";
+import { searchContacts } from "./contacts";
+import { findAvailableSlots } from "./schedule";
 
 // Tool definitions for the LLM
 export const tools = [
@@ -7,7 +9,7 @@ export const tools = [
     type: "function",
     function: {
       name: "getUnreadEmails",
-      description: "Fetch unread emails from Dr. Mehjabeen's inbox. Returns sender, subject, and snippet.",
+      description: "Fetch unread emails from the user's inbox. Returns sender, subject, and snippet.",
       parameters: {
         type: "object",
         properties: {
@@ -20,7 +22,7 @@ export const tools = [
     type: "function",
     function: {
       name: "getTodaySchedule",
-      description: "Get all of Dr. Mehjabeen's calendar events for today",
+      description: "Get all of the user's calendar events for today",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -42,7 +44,7 @@ export const tools = [
     type: "function",
     function: {
       name: "createEvent",
-      description: "Create a new event on Dr. Mehjabeen's primary calendar",
+      description: "Create a new event on the user's primary calendar",
       parameters: {
         type: "object",
         properties: {
@@ -59,7 +61,7 @@ export const tools = [
     type: "function",
     function: {
       name: "sendEmail",
-      description: "Send an email from Dr. Mehjabeen's Gmail account. IMPORTANT: Before calling this tool, you MUST first show the user the draft email (to, subject, body) in your response and ask for confirmation. Only call this tool AFTER the user confirms.",
+      description: "Send an email from the user's Gmail account. IMPORTANT: Before calling this tool, you MUST first show the user the draft email (to, subject, body) in your response and ask for confirmation. Only call this tool AFTER the user confirms.",
       parameters: {
         type: "object",
         properties: {
@@ -71,21 +73,50 @@ export const tools = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "searchContacts",
+      description: "Search the user's Google Contacts by name to find their email address. Use this when the user asks to email someone but doesn't provide the email address.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The name to search for" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "findAvailableSlots",
+      description: "Find available free time slots on a specific date for a given duration.",
+      parameters: {
+        type: "object",
+        properties: {
+          dateString: { type: "string", description: "The date to check in YYYY-MM-DD format (e.g. '2026-07-08')" },
+          durationMinutes: { type: "number", description: "The duration of the meeting in minutes (default 30)" },
+        },
+        required: ["dateString"],
+      },
+    },
+  },
 ];
 
 // Tool router
-export async function executeToolCall(name: string, args: Record<string, unknown>): Promise<unknown> {
+export async function executeToolCall(userId: string, name: string, args: Record<string, unknown>): Promise<unknown> {
   console.log(`Executing tool: ${name}`, args);
   try {
     switch (name) {
       case "getUnreadEmails":
-        return await getUnreadEmails((args.maxResults as number) || 5);
+        return await getUnreadEmails(userId, (args.maxResults as number) || 5);
       case "getTodaySchedule":
-        return await getTodaySchedule();
+        return await getTodaySchedule(userId);
       case "getUpcomingEvents":
-        return await getUpcomingEvents((args.days as number) || 3);
+        return await getUpcomingEvents(userId, (args.days as number) || 3);
       case "createEvent":
-        return await createEvent({
+        return await createEvent(userId, {
           title: args.title as string,
           startTime: args.startTime as string,
           endTime: args.endTime as string,
@@ -93,10 +124,15 @@ export async function executeToolCall(name: string, args: Record<string, unknown
         });
       case "sendEmail":
         return await sendEmail(
+          userId,
           args.to as string,
           args.subject as string,
           args.body as string,
         );
+      case "searchContacts":
+        return await searchContacts(userId, args.query as string);
+      case "findAvailableSlots":
+        return await findAvailableSlots(userId, args.dateString as string, (args.durationMinutes as number) || 30);
       default:
         return { error: `Unknown tool: ${name}` };
     }

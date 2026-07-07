@@ -5,33 +5,33 @@ import type { CalendarEvent, NewEvent } from "./types";
 /**
  * Get today's calendar events
  */
-export async function getTodaySchedule(): Promise<CalendarEvent[]> {
+export async function getTodaySchedule(userId: string): Promise<CalendarEvent[]> {
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
   
   const endOfDay = new Date();
   endOfDay.setHours(23, 59, 59, 999);
 
-  return fetchEvents(startOfDay.toISOString(), endOfDay.toISOString());
+  return fetchEvents(userId, startOfDay.toISOString(), endOfDay.toISOString());
 }
 
 /**
  * Get upcoming events for the next N days
  */
-export async function getUpcomingEvents(days: number): Promise<CalendarEvent[]> {
+export async function getUpcomingEvents(userId: string, days: number): Promise<CalendarEvent[]> {
   const start = new Date();
   const end = new Date();
   end.setDate(end.getDate() + days);
   end.setHours(23, 59, 59, 999);
 
-  return fetchEvents(start.toISOString(), end.toISOString());
+  return fetchEvents(userId, start.toISOString(), end.toISOString());
 }
 
 /**
  * Core fetch function
  */
-async function fetchEvents(timeMin: string, timeMax: string): Promise<CalendarEvent[]> {
-  const auth = getAuthClient();
+async function fetchEvents(userId: string, timeMin: string, timeMax: string): Promise<CalendarEvent[]> {
+  const auth = await getAuthClient(userId);
   const calendar = google.calendar({ version: "v3", auth });
 
   try {
@@ -63,8 +63,8 @@ async function fetchEvents(timeMin: string, timeMax: string): Promise<CalendarEv
 /**
  * Create a new calendar event
  */
-export async function createEvent(eventDetails: NewEvent): Promise<CalendarEvent> {
-  const auth = getAuthClient();
+export async function createEvent(userId: string, eventDetails: NewEvent): Promise<CalendarEvent> {
+  const auth = await getAuthClient(userId);
   const calendar = google.calendar({ version: "v3", auth });
 
   try {

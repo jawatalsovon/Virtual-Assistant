@@ -1,35 +1,32 @@
 import { tools, executeToolCall } from "./agent-tools";
+import { getConversationMessages, addMessage } from "./conversation";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY!;
 const LLM_MODEL = process.env.LLM_MODEL || "deepseek/deepseek-v4-flash";
 
-const SYSTEM_PROMPT = `You are the personal AI assistant for Dr. Melita Mehjabeen.
+const SYSTEM_PROMPT = (userName: string) => `You are a proactive, professional AI personal assistant for ${userName}.
 Current date/time (Bangladesh Standard Time): ${new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" })}
 
-About her:
-- Chairperson of a private bank in Bangladesh
-- Independent Director at BAT Bangladesh and Grameenphone
-- Professor at IBA, University of Dhaka
-
 Your role:
-- Manage her schedule and calendar
+- Manage the user's schedule and calendar
 - Summarize emails, highlighting actionable items
 - Draft and send emails when asked
 - Be concise, professional, and proactive
 - Use bullet points for summaries
-- DO NOT ask for confirmation when she asks to schedule something. Just execute the tool and tell her it's done.
-- IMPORTANT: When she asks you to send an email, first draft the email and show it to her. Ask "Shall I send this?". Only call the sendEmail tool AFTER she confirms (says yes, send it, go ahead, etc.).
-- IMPORTANT: All times must be in Bangladesh Standard Time (BST). When creating events, omit the timezone offset (e.g., 2026-07-07T15:00:00) as the backend automatically handles the Dhaka timezone.
-- If she speaks in Bangla, respond in Bangla
+- DO NOT ask for confirmation when asked to schedule something. Just execute the tool and confirm it's done.
+- IMPORTANT: When asked to send an email, first draft the email and show it to the user. Ask "Shall I send this?". Only call the sendEmail tool AFTER they confirm.
+- IMPORTANT: All times must be in Bangladesh Standard Time (BST). When creating events, omit the timezone offset.
+- Always respond in English, regardless of what language the user gives instructions in.
+- ONLY respond in Bangla if the user explicitly asks you to speak or reply in Bangla.
+- When asked about availability or meeting times, check the calendar and identify free time slots.
 
-You have access to tools to read her emails, send emails, and manage her calendar.
-Use them whenever she asks about her schedule, inbox, or wants to send an email!`;
+You have access to tools to read emails, send emails, and manage the calendar. Use them!`;
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string | null;
   name?: string;
-  tool_calls?: unknown[];
+  tool_calls?: any[];
   tool_call_id?: string;
 }
 
@@ -51,13 +48,19 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
 
 /**
  * Main agent loop: Sends message to LLM, handles tool calls iteratively, returns final text.
- * Accepts optional conversation history for multi-turn flows (e.g., email confirmation).
+ * Now fully persists conversation state to Supabase.
  */
-export async function runAgent(userMessage: string, conversationHistory: ChatMessage[] = []): Promise<string> {
+export async function runAgent(userId: string, userName: string, conversationId: string, userMessageText: string): Promise<string> {
+  // 1. Add user message to DB
+  const userMsg: ChatMessage = { role: "user", content: userMessageText };
+  await addMessage(conversationId, userMsg);
+
+  // 2. Load full history from DB
+  const history = await getConversationMessages(conversationId);
+  
   const messages: ChatMessage[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    ...conversationHistory,
-    { role: "user", content: userMessage },
+    { role: "system", content: SYSTEM_PROMPT(userName) },
+    ...history,
   ];
 
   let iterations = 0;
@@ -65,7 +68,6 @@ export async function runAgent(userMessage: string, conversationHistory: ChatMes
 
   while (iterations < MAX_ITERATIONS) {
     iterations++;
-
     console.log(`LLM Request (Iteration ${iterations})`);
     
     const res = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
@@ -74,7 +76,7 @@ export async function runAgent(userMessage: string, conversationHistory: ChatMes
         Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "https://github.com/melita-assistant",
-        "X-Title": "Dr. Melita Assistant",
+        "X-Title": "Virtual Assistant",
       },
       body: JSON.stringify({
         model: LLM_MODEL,
@@ -98,12 +100,14 @@ export async function runAgent(userMessage: string, conversationHistory: ChatMes
       throw new Error("No content in LLM response");
     }
 
-    // Add assistant's message to history
-    messages.push({
+    // Add assistant's message to history array AND database
+    const assistantMsg: ChatMessage = {
       role: "assistant",
       content: responseMessage.content || null,
       tool_calls: responseMessage.tool_calls,
-    });
+    };
+    messages.push(assistantMsg);
+    await addMessage(conversationId, assistantMsg);
 
     // If the LLM didn't call any tools, we are done
     if (!responseMessage.tool_calls || responseMessage.tool_calls.length === 0) {
@@ -115,15 +119,17 @@ export async function runAgent(userMessage: string, conversationHistory: ChatMes
       const functionName = toolCall.function.name;
       const args = JSON.parse(toolCall.function.arguments);
       
-      const result = await executeToolCall(functionName, args);
+      const result = await executeToolCall(userId, functionName, args);
       
-      // Feed result back to LLM
-      messages.push({
+      // Feed result back to LLM history array AND database
+      const toolMsg: ChatMessage = {
         role: "tool",
         tool_call_id: toolCall.id,
         name: functionName,
         content: JSON.stringify(result),
-      });
+      };
+      messages.push(toolMsg);
+      await addMessage(conversationId, toolMsg);
     }
   }
 

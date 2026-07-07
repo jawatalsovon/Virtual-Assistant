@@ -5,8 +5,8 @@ import type { EmailSummary } from "./types";
 /**
  * Fetch the latest unread emails from the primary inbox.
  */
-export async function getUnreadEmails(maxResults = 10): Promise<EmailSummary[]> {
-  const auth = getAuthClient();
+export async function getUnreadEmails(userId: string, maxResults = 10): Promise<EmailSummary[]> {
+  const auth = await getAuthClient(userId);
   const gmail = google.gmail({ version: "v1", auth });
 
   try {
@@ -56,8 +56,8 @@ export async function getUnreadEmails(maxResults = 10): Promise<EmailSummary[]> 
 /**
  * Send an email from Dr. Mehjabeen's Gmail account.
  */
-export async function sendEmail(to: string, subject: string, body: string): Promise<{ success: boolean; messageId: string }> {
-  const auth = getAuthClient();
+export async function sendEmail(userId: string, to: string, subject: string, body: string): Promise<{ success: boolean; messageId: string }> {
+  const auth = await getAuthClient(userId);
   const gmail = google.gmail({ version: "v1", auth });
 
   try {
