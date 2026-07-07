@@ -7,7 +7,7 @@ import { sendEmail } from "../src/lib/gmail";
 async function run() {
   try {
     console.log("Attempting to send a test email...");
-    const res = await sendEmail("jawatalsovon@gmail.com", "Test from script", "This is a test email body.");
+    const res = await sendEmail("dummy-user-id", "jawatalsovon@gmail.com", "Test from script", "This is a test email body.");
     console.log("Success:", res);
   } catch (error: any) {
     console.error("Failed to send email. Details:");
