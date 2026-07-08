@@ -280,9 +280,14 @@ export default function Home() {
                 {session?.user?.name || "User"}
               </div>
             </div>
-            <button className="btn-icon" onClick={() => signOut()} title="Sign out">
-              <LogOut size={18} />
-            </button>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button className="btn-icon" onClick={() => router.push("/settings")} title="Settings">
+                <Settings size={18} />
+              </button>
+              <button className="btn-icon" onClick={() => signOut()} title="Sign out">
+                <LogOut size={18} />
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -290,16 +295,11 @@ export default function Home() {
       {/* Main Chat Area */}
       <section className="main-chat">
         <header className="header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <button className="btn-icon mobile-menu-btn" onClick={() => setIsMobileMenuOpen(true)}>
-                <Menu size={24} />
-              </button>
-              <h1>Nova</h1>
-            </div>
-            <button className="btn-icon" onClick={() => router.push("/settings")} title="Settings">
-              <Settings size={20} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button className="btn-icon mobile-menu-btn" onClick={() => setIsMobileMenuOpen(true)}>
+              <Menu size={24} />
             </button>
+            <h1>Nova</h1>
           </div>
         </header>
 
