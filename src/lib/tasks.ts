@@ -11,7 +11,18 @@ export interface Task {
 
 export async function addTask(userId: string, content: string, category: string = "General", expires_at?: string): Promise<string> {
   const insertData: any = { user_id: userId, content, category };
-  if (expires_at) insertData.expires_at = expires_at;
+  
+  if (expires_at) {
+    const parsedDate = new Date(expires_at);
+    if (isNaN(parsedDate.getTime())) {
+      console.warn(`Invalid expires_at provided: ${expires_at}. Defaulting to end of today.`);
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
+      insertData.expires_at = endOfToday.toISOString();
+    } else {
+      insertData.expires_at = parsedDate.toISOString();
+    }
+  }
 
   const { error } = await supabaseAdmin
     .from("tasks")

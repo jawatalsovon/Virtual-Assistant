@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'public',
   server: {
     url: 'https://virtual-assistant-hazel-phi.vercel.app/',
-    cleartext: true,
+    cleartext: false,
     allowNavigation: [
       "virtual-assistant-hazel-phi.vercel.app",
       "*.vercel.app",

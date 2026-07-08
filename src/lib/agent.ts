@@ -123,20 +123,26 @@ export async function runAgent(userId: string, userName: string, conversationId:
       return responseMessage.content || "Done.";
     }
 
-    // Execute all tool calls
-    for (const toolCall of responseMessage.tool_calls) {
+    // Execute all tool calls concurrently
+    const toolPromises = responseMessage.tool_calls.map(async (toolCall: any) => {
       const functionName = toolCall.function.name;
       const args = JSON.parse(toolCall.function.arguments);
       
       const result = await executeToolCall(userId, functionName, args);
       
-      // Feed result back to LLM history array AND database
       const toolMsg: ChatMessage = {
         role: "tool",
         tool_call_id: toolCall.id,
         name: functionName,
         content: JSON.stringify(result),
       };
+      return toolMsg;
+    });
+
+    const toolMessages = await Promise.all(toolPromises);
+    
+    // Add messages to history sequentially to maintain order
+    for (const toolMsg of toolMessages) {
       messages.push(toolMsg);
       await addMessage(conversationId, toolMsg);
     }

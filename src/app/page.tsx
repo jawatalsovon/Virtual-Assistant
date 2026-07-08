@@ -48,6 +48,42 @@ export default function Home() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const chatHistoryRef = useRef<HTMLDivElement>(null);
+  
+  const stateRef = useRef({ messages, conversationId, isProcessing });
+  useEffect(() => {
+    stateRef.current = { messages, conversationId, isProcessing };
+  }, [messages, conversationId, isProcessing]);
+
+  useEffect(() => {
+    let listener: any = null;
+    const setupListener = async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform()) {
+          listener = await App.addListener('appUrlOpen', data => {
+            try {
+              const url = new URL(data.url);
+              if (url.protocol === 'nova:' && url.host === 'chat') {
+                const msg = url.searchParams.get('message');
+                if (msg) {
+                  handleWidgetMessage(msg);
+                }
+              }
+            } catch (err) {
+              console.error("Deep link parsing error", err);
+            }
+          });
+        }
+      } catch (e) {
+        console.log("Capacitor App plugin not available");
+      }
+    };
+    setupListener();
+    return () => {
+      if (listener) listener.remove();
+    };
+  }, []);
 
   // Preload voices for TTS to avoid empty voices array on mobile/safari
   useEffect(() => {
@@ -186,6 +222,22 @@ export default function Home() {
     }
   };
 
+  const deleteConversation = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/conversations/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        if (conversationId === id) {
+          startNewConversation();
+        } else {
+          fetchConversations();
+        }
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const loadConversation = async (id: string) => {
     try {
       const res = await fetch(`/api/conversations/${id}`);
@@ -245,6 +297,41 @@ export default function Home() {
     setConversationId(null);
     setMessages([{ role: "assistant", content: "Started a new conversation. How can I help you?" }]);
     fetchConversations(); // refresh the list
+  };
+
+  const handleWidgetMessage = async (text: string) => {
+    const { conversationId, isProcessing } = stateRef.current;
+    if (!text.trim() || isProcessing) return;
+    
+    setMessages((prev) => [...prev, { role: "user" as const, content: text }]);
+    setIsProcessing(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, conversationId }),
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        if (data.conversationId && !conversationId) {
+          setConversationId(data.conversationId);
+          fetchConversations(); 
+        }
+        setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+        speakText(data.reply);
+        fetchNotes();
+        fetchTasks();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      console.error(error);
+      setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, I encountered an error." }]);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const sendTextMessage = async () => {
@@ -395,9 +482,15 @@ export default function Home() {
                   key={conv.id} 
                   className={`conv-item ${conversationId === conv.id ? 'active' : ''}`}
                   onClick={() => loadConversation(conv.id)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                 >
-                  <MessageSquare size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }}/> 
-                  {conv.title}
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <MessageSquare size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }}/> 
+                    {conv.title}
+                  </div>
+                  <button className="btn-icon" style={{ opacity: 0.5, padding: '4px' }} onClick={(e) => deleteConversation(conv.id, e)} title="Delete conversation">
+                    <Trash2 size={14} color="#ef4444" />
+                  </button>
                 </li>
               ))}
               {conversations.length === 0 && (
@@ -479,9 +572,9 @@ export default function Home() {
                       ))}
                       <button
                         onClick={() => setShowNotesFullscreen(true)}
-                        style={{ width: 'calc(100% - 24px)', margin: '4px 12px 0', padding: '9px', background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(139,92,246,0.05))', border: '1px solid rgba(139,92,246,0.4)', borderRadius: '8px', color: 'var(--accent-color)', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', letterSpacing: '0.02em' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,92,246,0.2)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(139,92,246,0.05))'}
+                        style={{ width: 'calc(100% - 24px)', margin: '4px 12px 0', padding: '8px', background: 'transparent', border: '1px dashed rgba(139,92,246,0.3)', borderRadius: '8px', color: 'var(--accent-color)', fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,92,246,0.08)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       >
                         See All Notes ({allNotes.length})
                       </button>
