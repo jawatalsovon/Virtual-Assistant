@@ -13,14 +13,16 @@ export default function NativeAppBridge() {
 
     const setupShortcuts = async () => {
       try {
-        await AppShortcuts.set([
-          {
-            id: "quick_talk",
-            title: "Quick Talk",
-            description: "Talk to Nova immediately",
-            icon: "ic_menu_mic", // standard android icon, or just leave it
-          },
-        ]);
+        await AppShortcuts.set({
+          shortcuts: [
+            {
+              id: "quick_talk",
+              title: "Quick Talk",
+              description: "Talk to Nova immediately",
+              icon: "ic_menu_mic", // standard android icon, or just leave it
+            },
+          ]
+        });
 
         AppShortcuts.addListener("shortcutItem", (shortcut) => {
           if (shortcut.id === "quick_talk") {
