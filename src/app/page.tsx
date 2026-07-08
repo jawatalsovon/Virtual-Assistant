@@ -32,6 +32,8 @@ export default function Home() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [notesByTopic, setNotesByTopic] = useState<Record<string, any[]>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const isEmptyState = messages.length <= 1;
@@ -56,6 +58,7 @@ export default function Home() {
       router.push("/login");
     } else if (status === "authenticated") {
       fetchConversations();
+      fetchNotes();
     }
   }, [status, router]);
 
@@ -65,6 +68,24 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         setConversations(data.conversations);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchNotes = async () => {
+    try {
+      const res = await fetch("/api/notes");
+      if (res.ok) {
+        const data = await res.json();
+        const grouped: Record<string, any[]> = {};
+        data.notes?.forEach((n: any) => {
+          const t = n.topic || 'General';
+          if (!grouped[t]) grouped[t] = [];
+          grouped[t].push(n);
+        });
+        setNotesByTopic(grouped);
       }
     } catch (e) {
       console.error(e);
@@ -156,6 +177,7 @@ export default function Home() {
         }
         setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
         speakText(data.reply);
+        fetchNotes();
       } else {
         throw new Error(data.error);
       }
@@ -207,6 +229,7 @@ export default function Home() {
               { role: "assistant", content: data.reply },
             ]);
             speakText(data.reply);
+            fetchNotes();
           } else {
             throw new Error(data.error);
           }
@@ -249,35 +272,102 @@ export default function Home() {
 
       {/* Sidebar */}
       <aside className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-        <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button className="btn-primary" onClick={() => { startNewConversation(); setIsMobileMenuOpen(false); }} style={{ flexGrow: 1, marginRight: isMobileMenuOpen ? '10px' : '0' }}>
+        <div className="sidebar-header" style={{ padding: '24px 20px 16px', display: 'flex', flexDirection: 'column', gap: '16px', borderBottom: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--accent-color)' }}>Nova</h2>
+            {isMobileMenuOpen && (
+              <button className="btn-icon" onClick={() => setIsMobileMenuOpen(false)}>
+                <X size={20} />
+              </button>
+            )}
+          </div>
+          <button className="btn-primary" onClick={() => { startNewConversation(); setIsMobileMenuOpen(false); }} style={{ width: '100%' }}>
             <PlusCircle size={18} />
             <span>New Chat</span>
           </button>
-          {isMobileMenuOpen && (
-            <button className="btn-icon" onClick={() => setIsMobileMenuOpen(false)}>
-              <X size={20} />
-            </button>
-          )}
         </div>
-        <ul className="conv-list">
-          {conversations.map(conv => (
-            <li 
-              key={conv.id} 
-              className={`conv-item ${conversationId === conv.id ? 'active' : ''}`}
-              onClick={() => loadConversation(conv.id)}
-            >
-              <MessageSquare size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }}/> 
-              {conv.title}
-            </li>
-          ))}
-          {conversations.length === 0 && (
-            <li className="conv-item active">
-              <MessageSquare size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }}/> 
-              Current Session
-            </li>
-          )}
-        </ul>
+        
+        <div style={{ overflowY: 'auto', flexGrow: 1, padding: '16px 10px' }}>
+          {/* Chats Section */}
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--secondary-color)', margin: '0 0 12px 12px', letterSpacing: '0.1em' }}>
+              Recent Chats
+            </h3>
+            <ul className="conv-list" style={{ padding: 0, overflowY: 'visible', flexGrow: 0 }}>
+              {conversations.map(conv => (
+                <li 
+                  key={conv.id} 
+                  className={`conv-item ${conversationId === conv.id ? 'active' : ''}`}
+                  onClick={() => loadConversation(conv.id)}
+                >
+                  <MessageSquare size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }}/> 
+                  {conv.title}
+                </li>
+              ))}
+              {conversations.length === 0 && (
+                <li className="conv-item active">
+                  <MessageSquare size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }}/> 
+                  Current Session
+                </li>
+              )}
+            </ul>
+          </div>
+
+          {/* Notes Section */}
+          <div>
+            <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--secondary-color)', margin: '0 0 12px 12px', letterSpacing: '0.1em' }}>
+              My Notes
+            </h3>
+            <div className="notes-list" style={{ padding: '0 0 8px 0' }}>
+              {Object.keys(notesByTopic).length === 0 ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--secondary-color)', fontSize: '0.85rem' }}>
+                  No notes saved yet.<br/><br/>Ask me to save a note!
+                </div>
+              ) : (
+                Object.entries(notesByTopic).map(([topic, topicNotes]) => (
+                  <div key={topic} style={{ marginBottom: '16px', padding: '0 12px' }}>
+                    <h4 style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--secondary-color)', margin: '0 0 8px 4px', letterSpacing: '0.05em' }}>
+                      {topic}
+                    </h4>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {topicNotes.map(n => (
+                        <li 
+                          key={n.id} 
+                          style={{ 
+                            padding: '10px 12px', 
+                            background: 'rgba(255,255,255,0.03)', 
+                            borderRadius: '8px', 
+                            marginBottom: '6px',
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            border: '1px solid rgba(255,255,255,0.05)',
+                            transition: 'all 0.2s ease',
+                            lineHeight: '1.4'
+                          }}
+                          onClick={() => {
+                            setInputText(`Regarding my note on ${topic}: "${n.content.substring(0, 50)}..." - `);
+                            if (window.innerWidth < 768) setIsMobileMenuOpen(false);
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--accent-color)';
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                          }}
+                        >
+                          {n.content}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
         <div className="sidebar-header" style={{ borderTop: '1px solid var(--border-color)', borderBottom: 'none' }}>
           <div className="user-menu">
             {session?.user?.image ? (

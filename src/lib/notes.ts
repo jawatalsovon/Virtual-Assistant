@@ -1,9 +1,9 @@
 import { supabaseAdmin } from "./supabase";
 
-export async function saveNote(userId: string, content: string): Promise<string> {
+export async function saveNote(userId: string, content: string, topic: string = 'General'): Promise<string> {
   const { data, error } = await supabaseAdmin
     .from("notes")
-    .insert({ user_id: userId, content })
+    .insert({ user_id: userId, content, topic })
     .select("id")
     .single();
 

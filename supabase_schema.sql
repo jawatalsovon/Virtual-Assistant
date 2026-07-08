@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS public.notes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES next_auth.users(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
+  topic TEXT DEFAULT 'General',
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

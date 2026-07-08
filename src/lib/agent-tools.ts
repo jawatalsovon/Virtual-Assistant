@@ -142,8 +142,9 @@ export const tools = [
         type: "object",
         properties: {
           content: { type: "string", description: "The content of the note" },
+          topic: { type: "string", description: "A short 1-2 word topic category for the note (e.g. 'Work', 'Ideas', 'Shopping', 'Reminders')" }
         },
-        required: ["content"],
+        required: ["content", "topic"],
       },
     },
   },
@@ -197,7 +198,7 @@ export async function executeToolCall(userId: string, name: string, args: Record
       case "findAvailableSlots":
         return await findAvailableSlots(userId, args.dateString as string, (args.durationMinutes as number) || 30);
       case "saveNote":
-        return await saveNote(userId, args.content as string);
+        return await saveNote(userId, args.content as string, args.topic as string);
       case "searchNotes":
         return await searchNotes(userId, args.query as string);
       default:

@@ -482,6 +482,24 @@ body {
   gap: 30px;
 }
 
+@media (max-width: 767px) {
+  .login-card {
+    padding: 24px;
+    margin: 16px;
+    gap: 20px;
+    max-width: 320px;
+  }
+  .login-avatar {
+    width: 60px !important;
+    height: 60px !important;
+    font-size: 1.5rem !important;
+    margin-bottom: 12px !important;
+  }
+  .login-header h1 {
+    font-size: 1.4rem !important;
+  }
+}
+
 .login-avatar {
   width: 80px;
   height: 80px;
