@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Send, Mic, LogOut, MessageSquare, PlusCircle, User, Loader2, Menu, X } from "lucide-react";
+import { Send, Mic, LogOut, MessageSquare, PlusCircle, User, Loader2, Menu, X, Settings } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant" | "system" | "tool";
@@ -91,11 +91,24 @@ export default function Home() {
     const utterance = new SpeechSynthesisUtterance(cleanText);
     
     const voices = window.speechSynthesis.getVoices();
-    const femaleVoice = voices.find(v => 
-      v.name.includes('Female') || v.name.includes('Samantha') || 
-      v.name.includes('Google UK English Female') || v.name.includes('Zira')
-    );
-    if (femaleVoice) utterance.voice = femaleVoice;
+    const savedVoiceURI = localStorage.getItem("nova_voice_uri");
+    let selectedVoice = null;
+    
+    if (savedVoiceURI) {
+      selectedVoice = voices.find(v => v.voiceURI === savedVoiceURI);
+    }
+    
+    if (!selectedVoice) {
+      selectedVoice = voices.find(v => 
+        v.name.includes('Female') || v.name.includes('Samantha') || 
+        v.name.includes('Google UK English Female') || v.name.includes('Zira')
+      );
+    }
+    
+    if (selectedVoice) utterance.voice = selectedVoice;
+
+    const savedSpeed = localStorage.getItem("nova_voice_speed");
+    if (savedSpeed) utterance.rate = parseFloat(savedSpeed);
     
     utterance.onstart = () => setIsAssistantSpeaking(true);
     utterance.onend = () => setIsAssistantSpeaking(false);
@@ -277,11 +290,16 @@ export default function Home() {
       {/* Main Chat Area */}
       <section className="main-chat">
         <header className="header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button className="btn-icon mobile-menu-btn" onClick={() => setIsMobileMenuOpen(true)}>
-              <Menu size={24} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button className="btn-icon mobile-menu-btn" onClick={() => setIsMobileMenuOpen(true)}>
+                <Menu size={24} />
+              </button>
+              <h1>Nova</h1>
+            </div>
+            <button className="btn-icon" onClick={() => router.push("/settings")} title="Settings">
+              <Settings size={20} />
             </button>
-            <h1>Nova</h1>
           </div>
         </header>
 
