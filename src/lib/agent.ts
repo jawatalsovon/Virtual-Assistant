@@ -23,7 +23,7 @@ Your role:
 - ONLY respond in Bangla if the user explicitly asks you to speak or reply in Bangla.
 - When asked about availability or meeting times, check the calendar and identify free time slots.
 
-You have access to tools to read emails, send emails, manage the calendar, and save/search notes. Use them!`;
+You have access to tools to read emails, send emails, manage the calendar, save/search/delete notes, and manage tasks (add, update, search, delete). Use them!`;
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";

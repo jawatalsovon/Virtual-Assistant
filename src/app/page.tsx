@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Send, Mic, LogOut, MessageSquare, PlusCircle, User, Loader2, Menu, X, Settings } from "lucide-react";
+import { Send, Mic, LogOut, MessageSquare, PlusCircle, User, Loader2, Menu, X, Settings, Trash2, CheckCircle, Circle } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant" | "system" | "tool";
@@ -33,8 +33,10 @@ export default function Home() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notesByTopic, setNotesByTopic] = useState<Record<string, any[]>>({});
+  const [tasksByCategory, setTasksByCategory] = useState<Record<string, any[]>>({});
   const [showAllChats, setShowAllChats] = useState(false);
   const [showNotesFullscreen, setShowNotesFullscreen] = useState(false);
+  const [showTasksFullscreen, setShowTasksFullscreen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const isEmptyState = messages.length <= 1;
@@ -60,6 +62,7 @@ export default function Home() {
     } else if (status === "authenticated") {
       fetchConversations();
       fetchNotes();
+      fetchTasks();
     }
   }, [status, router]);
 
@@ -90,6 +93,58 @@ export default function Home() {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const fetchTasks = async () => {
+    try {
+      const res = await fetch("/api/tasks");
+      if (res.ok) {
+        const data = await res.json();
+        const grouped: Record<string, any[]> = {};
+        data.tasks?.forEach((t: any) => {
+          const cat = t.category || 'General';
+          if (!grouped[cat]) grouped[cat] = [];
+          grouped[cat].push(t);
+        });
+        setTasksByCategory(grouped);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const deleteNote = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+      if (res.ok) fetchNotes();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const toggleTask = async (id: string, is_done: boolean, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_done })
+      });
+      if (res.ok) fetchTasks();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const deleteTask = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      if (res.ok) fetchTasks();
+    } catch (error) {
+      console.error(error);
     }
   };
 
@@ -179,6 +234,7 @@ export default function Home() {
         setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
         speakText(data.reply);
         fetchNotes();
+        fetchTasks();
       } else {
         throw new Error(data.error);
       }
@@ -231,6 +287,7 @@ export default function Home() {
             ]);
             speakText(data.reply);
             fetchNotes();
+            fetchTasks();
           } else {
             throw new Error(data.error);
           }
@@ -295,7 +352,7 @@ export default function Home() {
               Recent Chats
             </h3>
             <ul className="conv-list" style={{ padding: 0, overflowY: 'visible', flexGrow: 0 }}>
-              {(showAllChats ? conversations : conversations.slice(0, 7)).map(conv => (
+              {(showAllChats ? conversations : conversations.slice(0, 4)).map(conv => (
                 <li 
                   key={conv.id} 
                   className={`conv-item ${conversationId === conv.id ? 'active' : ''}`}
@@ -312,20 +369,20 @@ export default function Home() {
                 </li>
               )}
             </ul>
-            {conversations.length > 7 && (
+            {conversations.length > 4 && (
               <button
                 onClick={() => setShowAllChats(v => !v)}
                 style={{ width: '100%', padding: '8px', background: 'transparent', border: '1px dashed rgba(139,92,246,0.3)', borderRadius: '8px', color: 'var(--accent-color)', fontSize: '0.8rem', cursor: 'pointer', marginTop: '4px', transition: 'all 0.2s' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,92,246,0.08)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-                {showAllChats ? '▲ Show Less' : `▼ See ${conversations.length - 7} More`}
+                {showAllChats ? '▲ Show Less' : `▼ See ${conversations.length - 4} More`}
               </button>
             )}
           </div>
 
           {/* Notes Section */}
-          <div>
+          <div style={{ marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 12px 12px', paddingRight: '4px' }}>
               <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--secondary-color)', margin: 0, letterSpacing: '0.1em' }}>
                 My Notes
@@ -346,13 +403,21 @@ export default function Home() {
                   return (
                     <>
                       {previewNotes.map(n => (
-                        <div key={n.id} style={{ margin: '0 12px 8px', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.05)', transition: 'all 0.2s ease', lineHeight: '1.4' }}
+                        <div key={n.id} style={{ position: 'relative', margin: '0 12px 8px', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.05)', transition: 'all 0.2s ease', lineHeight: '1.4', paddingRight: '36px' }}
                           onClick={() => { setInputText(`Regarding my note on ${n.topic}: "${n.content.substring(0, 50)}..." - `); if (window.innerWidth < 768) setIsMobileMenuOpen(false); }}
                           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
                           onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
                         >
                           <div style={{ fontSize: '0.68rem', color: 'var(--secondary-color)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>{n.topic}</div>
                           <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.content}</div>
+                          <button 
+                            className="btn-icon" 
+                            style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}
+                            onClick={(e) => deleteNote(n.id, e)}
+                            title="Delete note"
+                          >
+                            <Trash2 size={14} color="#ef4444" />
+                          </button>
                         </div>
                       ))}
                       <button
@@ -361,7 +426,66 @@ export default function Home() {
                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,92,246,0.2)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(139,92,246,0.05))'}
                       >
-                        📋 See All Notes ({allNotes.length})
+                        See All Notes ({allNotes.length})
+                      </button>
+                    </>
+                  );
+                })()
+              )}
+            </div>
+          </div>
+
+          {/* Tasks Section */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 12px 12px', paddingRight: '4px' }}>
+              <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--secondary-color)', margin: 0, letterSpacing: '0.1em' }}>
+                Tasks
+              </h3>
+            </div>
+            <div className="tasks-list" style={{ padding: '0 0 8px 0' }}>
+              {Object.keys(tasksByCategory).length === 0 ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--secondary-color)', fontSize: '0.85rem' }}>
+                  No tasks yet.<br/><br/>Ask me to add a task!
+                </div>
+              ) : (
+                (() => {
+                  // Flatten all tasks, show first 3 unfinished if possible
+                  const allTasks = Object.entries(tasksByCategory).flatMap(([category, tasks]) =>
+                    tasks.map(t => ({ ...t, category }))
+                  );
+                  const previewTasks = allTasks.filter(t => !t.is_done).slice(0, 3);
+                  if (previewTasks.length === 0 && allTasks.length > 0) previewTasks.push(...allTasks.slice(0, 3)); // fallback if all done
+
+                  return (
+                    <>
+                      {previewTasks.map(t => (
+                        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '0 12px 8px', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', fontSize: '0.85rem', border: '1px solid rgba(255,255,255,0.05)', transition: 'all 0.2s ease', lineHeight: '1.4' }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; }}
+                        >
+                          <button onClick={(e) => toggleTask(t.id, !t.is_done, e)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}>
+                            {t.is_done ? <CheckCircle size={16} color="var(--accent-color)" /> : <Circle size={16} color="var(--secondary-color)" />}
+                          </button>
+                          <div style={{ flexGrow: 1, textDecoration: t.is_done ? 'line-through' : 'none', color: t.is_done ? 'var(--secondary-color)' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {t.content}
+                          </div>
+                          <button 
+                            className="btn-icon" 
+                            style={{ opacity: 0.5, padding: '2px' }}
+                            onClick={(e) => deleteTask(t.id, e)}
+                            title="Delete task"
+                          >
+                            <Trash2 size={14} color="#ef4444" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => setShowTasksFullscreen(true)}
+                        style={{ width: 'calc(100% - 24px)', margin: '4px 12px 0', padding: '9px', background: 'transparent', border: '1px dashed rgba(139,92,246,0.3)', borderRadius: '8px', color: 'var(--accent-color)', fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,92,246,0.08)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        See All Tasks ({allTasks.length})
                       </button>
                     </>
                   );
@@ -426,7 +550,7 @@ export default function Home() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {topicNotes.map((n: any) => (
                         <div key={n.id}
-                          style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.07)', fontSize: '0.9rem', lineHeight: '1.6', cursor: 'pointer', transition: 'all 0.2s' }}
+                          style={{ position: 'relative', padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.07)', fontSize: '0.9rem', lineHeight: '1.6', cursor: 'pointer', transition: 'all 0.2s', paddingRight: '48px' }}
                           onClick={() => { setInputText(`Regarding my note on ${topic}: "${n.content.substring(0, 50)}..." - `); setShowNotesFullscreen(false); setIsMobileMenuOpen(false); }}
                           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.background = 'rgba(139,92,246,0.08)'; }}
                           onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
@@ -435,6 +559,70 @@ export default function Home() {
                             {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </div>
                           {n.content}
+                          <button 
+                            className="btn-icon" 
+                            style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.7, padding: '8px' }}
+                            onClick={(e) => deleteNote(n.id, e)}
+                            title="Delete note"
+                          >
+                            <Trash2 size={16} color="#ef4444" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-screen Tasks Modal */}
+      {showTasksFullscreen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowTasksFullscreen(false); }}
+        >
+          <div style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)', borderRadius: '24px', width: '100%', maxWidth: '700px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-color)' }}>Tasks</h2>
+                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--secondary-color)' }}>
+                  {Object.values(tasksByCategory).flat().filter(t => !t.is_done).length} active tasks
+                </p>
+              </div>
+              <button className="btn-icon" onClick={() => setShowTasksFullscreen(false)} style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ overflowY: 'auto', padding: '24px 28px', flexGrow: 1 }}>
+              {Object.keys(tasksByCategory).length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--secondary-color)', padding: '40px 0' }}>No tasks yet.</div>
+              ) : (
+                Object.entries(tasksByCategory).map(([category, catTasks]) => (
+                  <div key={category} style={{ marginBottom: '28px' }}>
+                    <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--accent-color)', margin: '0 0 12px', borderBottom: '1px solid rgba(139,92,246,0.2)', paddingBottom: '6px' }}>
+                      {category}
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {catTasks.sort((a, b) => Number(a.is_done) - Number(b.is_done)).map((t: any) => (
+                        <div key={t.id}
+                          style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.07)', fontSize: '0.9rem', lineHeight: '1.6', transition: 'all 0.2s' }}
+                        >
+                          <button onClick={(e) => toggleTask(t.id, !t.is_done, e)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}>
+                            {t.is_done ? <CheckCircle size={20} color="var(--accent-color)" /> : <Circle size={20} color="var(--secondary-color)" />}
+                          </button>
+                          <div style={{ flexGrow: 1, textDecoration: t.is_done ? 'line-through' : 'none', color: t.is_done ? 'var(--secondary-color)' : 'inherit' }}>
+                            {t.content}
+                          </div>
+                          <button 
+                            className="btn-icon" 
+                            style={{ opacity: 0.7, padding: '8px' }}
+                            onClick={(e) => deleteTask(t.id, e)}
+                            title="Delete task"
+                          >
+                            <Trash2 size={16} color="#ef4444" />
+                          </button>
                         </div>
                       ))}
                     </div>

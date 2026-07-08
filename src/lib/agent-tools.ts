@@ -3,6 +3,7 @@ import { saveNote, searchNotes } from "./notes";
 import { getTodaySchedule, getUpcomingEvents, createEvent } from "./calendar";
 import { searchContacts } from "./contacts";
 import { findAvailableSlots } from "./schedule";
+import { addTask, getTasks, updateTask, deleteTask, deleteNoteByContent } from "./tasks";
 
 // Tool definitions for the LLM
 export const tools = [
@@ -162,6 +163,79 @@ export const tools = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "deleteNote",
+      description: "Delete a note. Use when the user asks to delete or remove a specific note. Search by the note's content keywords.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Keywords from the note's content to identify which note to delete" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "addTask",
+      description: "Add a new task or to-do item for the user.",
+      parameters: {
+        type: "object",
+        properties: {
+          content: { type: "string", description: "The task description" },
+          category: { type: "string", description: "A short 1-2 word category for the task (e.g. 'Work', 'Shopping', 'Personal', 'Study')" },
+        },
+        required: ["content", "category"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getTasks",
+      description: "Retrieve and search the user's tasks. Use when asked to show tasks or find a specific task.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Optional keyword to search tasks. Leave empty to get all tasks." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "updateTask",
+      description: "Update a task - mark it done/undone, edit its content, or change its category. You MUST call getTasks first to get the task ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          taskId: { type: "string", description: "The UUID of the task to update" },
+          content: { type: "string", description: "New content for the task (optional)" },
+          is_done: { type: "boolean", description: "Mark task as done (true) or not done (false)" },
+          category: { type: "string", description: "New category for the task (optional)" },
+        },
+        required: ["taskId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "deleteTask",
+      description: "Delete a task permanently. You MUST call getTasks first to get the task ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          taskId: { type: "string", description: "The UUID of the task to delete" },
+        },
+        required: ["taskId"],
+      },
+    },
+  },
 ];
 
 // Tool router
@@ -201,6 +275,20 @@ export async function executeToolCall(userId: string, name: string, args: Record
         return await saveNote(userId, args.content as string, args.topic as string);
       case "searchNotes":
         return await searchNotes(userId, args.query as string);
+      case "deleteNote":
+        return await deleteNoteByContent(userId, args.query as string);
+      case "addTask":
+        return await addTask(userId, args.content as string, args.category as string);
+      case "getTasks":
+        return await getTasks(userId, args.query as string);
+      case "updateTask":
+        return await updateTask(userId, args.taskId as string, {
+          content: args.content as string | undefined,
+          is_done: args.is_done as boolean | undefined,
+          category: args.category as string | undefined,
+        });
+      case "deleteTask":
+        return await deleteTask(userId, args.taskId as string);
       default:
         return { error: `Unknown tool: ${name}` };
     }

@@ -89,6 +89,17 @@ CREATE TABLE IF NOT EXISTS public.notes (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Tasks table: stores user tasks with categories and completion state
+CREATE TABLE IF NOT EXISTS public.tasks (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES next_auth.users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  category TEXT DEFAULT 'General',
+  is_done BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- ==========================================
 -- 3. Row Level Security & Policies
 -- ==========================================
@@ -96,12 +107,16 @@ ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.telegram_mappings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 
 -- Policies: users can only see their own data
 CREATE POLICY "Users own conversations" ON public.conversations
   FOR ALL USING (user_id = auth.uid());
 
 CREATE POLICY "Users own notes" ON public.notes
+  FOR ALL USING (user_id = auth.uid());
+
+CREATE POLICY "Users own tasks" ON public.tasks
   FOR ALL USING (user_id = auth.uid());
 
 CREATE POLICY "Users own messages" ON public.messages
