@@ -4,4 +4,5 @@
     <string name="title_activity_main">Nova</string>
     <string name="package_name">com.nova.assistant</string>
     <string name="custom_url_scheme">com.nova.assistant</string>
+    <string name="server_client_id">280495370233-h941t88cvcdi6neh4onf9qfrd7ikep3p.apps.googleusercontent.com</string>
 </resources>

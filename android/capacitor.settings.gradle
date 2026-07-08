@@ -4,3 +4,6 @@ project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/
 
 include ':capawesome-capacitor-app-shortcuts'
 project(':capawesome-capacitor-app-shortcuts').projectDir = new File('../node_modules/@capawesome/capacitor-app-shortcuts/android')
+
+include ':capawesome-capacitor-google-sign-in'
+project(':capawesome-capacitor-google-sign-in').projectDir = new File('../node_modules/@capawesome/capacitor-google-sign-in/android')
