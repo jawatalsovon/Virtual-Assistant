@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import ReactMarkdown from "react-markdown";
 import { useSession } from "next-auth/react";
 import { Send, Mic, Loader2 } from "lucide-react";
@@ -11,7 +11,7 @@ interface Message {
   content: string;
 }
 
-export default function WidgetPage() {
+function WidgetContent() {
   const { status } = useSession();
   const searchParams = useSearchParams();
 
@@ -26,17 +26,14 @@ export default function WidgetPage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const chatHistoryRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll
   useEffect(() => {
     if (chatHistoryRef.current) {
       chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
     }
   }, [messages]);
 
-  // Auto-record on load if query param is present
   useEffect(() => {
     if (status === "authenticated" && searchParams.get("auto_record") === "true") {
-      // Need a slight delay to ensure UI is ready and media devices are available
       const timer = setTimeout(() => {
         if (!isRecording && !mediaRecorderRef.current) {
           startRecording();
@@ -44,33 +41,30 @@ export default function WidgetPage() {
       }, 500);
       return () => clearTimeout(timer);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, searchParams]);
 
   const sendTextMessage = async () => {
     if (!inputText.trim() || isProcessing) return;
-    
     const text = inputText.trim();
     setInputText("");
-    const updatedMessages: Message[] = [...messages, { role: "user" as const, content: text }];
-    setMessages(updatedMessages);
+    setMessages(prev => [...prev, { role: "user" as const, content: text }]);
     setIsProcessing(true);
-
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }), // Omitting conversationId for simplicity in widget
+        body: JSON.stringify({ message: text }),
       });
-      
       const data = await res.json();
       if (res.ok) {
-        setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+        setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
       } else {
         throw new Error(data.error);
       }
     } catch (error) {
       console.error(error);
-      setMessages((prev) => [...prev, { role: "assistant", content: "Error." }]);
+      setMessages(prev => [...prev, { role: "assistant", content: "Error." }]);
     } finally {
       setIsProcessing(false);
     }
@@ -83,25 +77,21 @@ export default function WidgetPage() {
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
-
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) audioChunksRef.current.push(event.data);
       };
-
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         setIsRecording(false);
         setIsProcessing(true);
         stream.getTracks().forEach(track => track.stop());
-
         const formData = new FormData();
         formData.append("file", audioBlob, "voice.webm");
-
         try {
           const res = await fetch("/api/voice", { method: "POST", body: formData });
           const data = await res.json();
           if (res.ok) {
-            setMessages((prev) => [
+            setMessages(prev => [
               ...prev,
               { role: "user", content: `🎙️ ${data.transcript}` },
               { role: "assistant", content: data.reply },
@@ -111,12 +101,11 @@ export default function WidgetPage() {
           }
         } catch (error) {
           console.error(error);
-          setMessages((prev) => [...prev, { role: "assistant", content: "Voice error." }]);
+          setMessages(prev => [...prev, { role: "assistant", content: "Voice error." }]);
         } finally {
           setIsProcessing(false);
         }
       };
-
       mediaRecorder.start();
       setIsRecording(true);
     } catch (error) {
@@ -134,7 +123,7 @@ export default function WidgetPage() {
   if (status === "loading" || status === "unauthenticated") {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'transparent' }}>
-        <Loader2 className="spinner" size={24} style={{ borderTopColor: 'var(--accent-color)' }} />
+        <Loader2 size={24} />
       </div>
     );
   }
@@ -144,7 +133,6 @@ export default function WidgetPage() {
       <header style={{ padding: '12px 16px', background: 'rgba(15, 23, 42, 0.9)', borderBottom: '1px solid var(--border-color)', fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
         ✨ Assistant
       </header>
-      
       <div className="chat-history" ref={chatHistoryRef} style={{ padding: '16px', flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {messages.map((msg, idx) => (
           <div key={idx} className={`message ${msg.role}`} style={{ padding: '10px 14px', fontSize: '0.9rem', maxWidth: '85%' }}>
@@ -153,11 +141,10 @@ export default function WidgetPage() {
         ))}
         {isProcessing && (
           <div className="message bot" style={{ padding: '10px 14px', maxWidth: 'fit-content' }}>
-            <Loader2 className="spinner" size={14} style={{ border: 'none', color: 'var(--accent-color)' }} />
+            <Loader2 size={14} style={{ color: 'var(--accent-color)' }} />
           </div>
         )}
       </div>
-
       <div style={{ padding: '12px', background: 'rgba(15, 23, 42, 0.9)', borderTop: '1px solid var(--border-color)' }}>
         <div className="input-wrapper" style={{ padding: '4px 8px' }}>
           <input
@@ -182,8 +169,8 @@ export default function WidgetPage() {
           >
             <Mic size={16} />
           </button>
-          <button 
-            className="btn-icon send-btn" 
+          <button
+            className="btn-icon send-btn"
             onClick={sendTextMessage}
             disabled={!inputText.trim() || isProcessing || isRecording}
             style={{ width: '32px', height: '32px' }}
@@ -193,5 +180,17 @@ export default function WidgetPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function WidgetPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <Loader2 size={24} />
+      </div>
+    }>
+      <WidgetContent />
+    </Suspense>
   );
 }
