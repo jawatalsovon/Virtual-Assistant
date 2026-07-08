@@ -1,4 +1,5 @@
-import { getUnreadEmails, sendEmail } from "./gmail";
+import { getUnreadEmails, sendEmail, getEmailThread, replyToEmail } from "./gmail";
+import { saveNote, searchNotes } from "./notes";
 import { getTodaySchedule, getUpcomingEvents, createEvent } from "./calendar";
 import { searchContacts } from "./contacts";
 import { findAvailableSlots } from "./schedule";
@@ -14,6 +15,7 @@ export const tools = [
         type: "object",
         properties: {
           maxResults: { type: "number", description: "Max emails to fetch (default 5)" },
+          query: { type: "string", description: "Optional Gmail search query (e.g., 'from:someone@example.com')" },
         },
       },
     },
@@ -76,6 +78,35 @@ export const tools = [
   {
     type: "function",
     function: {
+      name: "getEmailThread",
+      description: "Get the full text of an email thread for context.",
+      parameters: {
+        type: "object",
+        properties: {
+          messageId: { type: "string", description: "The ID of a message in the thread" },
+        },
+        required: ["messageId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "replyToEmail",
+      description: "Reply to an existing email. IMPORTANT: Before calling this tool, you MUST first show the user the draft reply (body) in your response and ask for confirmation. Only call this tool AFTER the user confirms.",
+      parameters: {
+        type: "object",
+        properties: {
+          messageId: { type: "string", description: "The ID of the message to reply to" },
+          body: { type: "string", description: "The reply body text" },
+        },
+        required: ["messageId", "body"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "searchContacts",
       description: "Search the user's Google Contacts by name to find their email address. Use this when the user asks to email someone but doesn't provide the email address.",
       parameters: {
@@ -102,6 +133,34 @@ export const tools = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "saveNote",
+      description: "Save a quick note or reminder for the user to remember later.",
+      parameters: {
+        type: "object",
+        properties: {
+          content: { type: "string", description: "The content of the note" },
+        },
+        required: ["content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "searchNotes",
+      description: "Search the user's saved notes by text query.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The text to search for in notes" },
+        },
+        required: ["query"],
+      },
+    },
+  },
 ];
 
 // Tool router
@@ -110,7 +169,7 @@ export async function executeToolCall(userId: string, name: string, args: Record
   try {
     switch (name) {
       case "getUnreadEmails":
-        return await getUnreadEmails(userId, (args.maxResults as number) || 5);
+        return await getUnreadEmails(userId, (args.maxResults as number) || 5, args.query as string || "");
       case "getTodaySchedule":
         return await getTodaySchedule(userId);
       case "getUpcomingEvents":
@@ -129,10 +188,18 @@ export async function executeToolCall(userId: string, name: string, args: Record
           args.subject as string,
           args.body as string,
         );
+      case "getEmailThread":
+        return await getEmailThread(userId, args.messageId as string);
+      case "replyToEmail":
+        return await replyToEmail(userId, args.messageId as string, args.body as string);
       case "searchContacts":
         return await searchContacts(userId, args.query as string);
       case "findAvailableSlots":
         return await findAvailableSlots(userId, args.dateString as string, (args.durationMinutes as number) || 30);
+      case "saveNote":
+        return await saveNote(userId, args.content as string);
+      case "searchNotes":
+        return await searchNotes(userId, args.query as string);
       default:
         return { error: `Unknown tool: ${name}` };
     }

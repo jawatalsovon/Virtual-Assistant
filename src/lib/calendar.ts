@@ -46,12 +46,13 @@ async function fetchEvents(userId: string, timeMin: string, timeMax: string): Pr
 
     const events = res.data.items || [];
 
-    return events.map(event => ({
+      return events.map(event => ({
       id: event.id || undefined,
       title: event.summary || "Untitled Event",
       start: event.start?.dateTime || event.start?.date || "",
       end: event.end?.dateTime || event.end?.date || "",
       location: event.location || undefined,
+      attendees: event.attendees?.map(a => a.email).filter(Boolean) as string[] || undefined,
       description: event.description || undefined,
     }));
   } catch (error) {
@@ -68,17 +69,24 @@ export async function createEvent(userId: string, eventDetails: NewEvent): Promi
   const calendar = google.calendar({ version: "v3", auth });
 
   try {
+    // Google Calendar API requires RFC3339 format which must include a timezone offset
+    // even if timeZone is specified. The LLM is instructed to omit the offset, so we append it.
+    const formatDateTime = (dt: string) => 
+      (dt.includes('Z') || dt.includes('+') || dt.includes('-') && dt.lastIndexOf('-') > 10) 
+        ? dt 
+        : `${dt}+06:00`;
+
     const res = await calendar.events.insert({
       calendarId: "primary",
       requestBody: {
         summary: eventDetails.title,
         description: eventDetails.description,
         start: {
-          dateTime: eventDetails.startTime,
+          dateTime: formatDateTime(eventDetails.startTime),
           timeZone: "Asia/Dhaka",
         },
         end: {
-          dateTime: eventDetails.endTime,
+          dateTime: formatDateTime(eventDetails.endTime),
           timeZone: "Asia/Dhaka",
         },
       },

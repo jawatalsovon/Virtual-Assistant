@@ -80,15 +80,27 @@ CREATE TABLE IF NOT EXISTS public.telegram_mappings (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Notes table: stores user quick notes
+CREATE TABLE IF NOT EXISTS public.notes (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES next_auth.users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- ==========================================
 -- 3. Row Level Security & Policies
 -- ==========================================
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.telegram_mappings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
 
 -- Policies: users can only see their own data
 CREATE POLICY "Users own conversations" ON public.conversations
+  FOR ALL USING (user_id = auth.uid());
+
+CREATE POLICY "Users own notes" ON public.notes
   FOR ALL USING (user_id = auth.uid());
 
 CREATE POLICY "Users own messages" ON public.messages

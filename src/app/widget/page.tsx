@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { useSession } from "next-auth/react";
 import { Send, Mic, Loader2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 interface Message {
   role: "user" | "assistant";
@@ -12,6 +13,7 @@ interface Message {
 
 export default function WidgetPage() {
   const { status } = useSession();
+  const searchParams = useSearchParams();
 
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: "Hi! How can I help?" },
@@ -30,6 +32,19 @@ export default function WidgetPage() {
       chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Auto-record on load if query param is present
+  useEffect(() => {
+    if (status === "authenticated" && searchParams.get("auto_record") === "true") {
+      // Need a slight delay to ensure UI is ready and media devices are available
+      const timer = setTimeout(() => {
+        if (!isRecording && !mediaRecorderRef.current) {
+          startRecording();
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [status, searchParams]);
 
   const sendTextMessage = async () => {
     if (!inputText.trim() || isProcessing) return;

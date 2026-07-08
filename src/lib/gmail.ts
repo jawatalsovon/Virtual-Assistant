@@ -5,14 +5,18 @@ import type { EmailSummary } from "./types";
 /**
  * Fetch the latest unread emails from the primary inbox.
  */
-export async function getUnreadEmails(userId: string, maxResults = 10): Promise<EmailSummary[]> {
+export async function getUnreadEmails(userId: string, maxResults = 10, query = ""): Promise<EmailSummary[]> {
   const auth = await getAuthClient(userId);
   const gmail = google.gmail({ version: "v1", auth });
 
   try {
+    const q = query 
+      ? `is:unread ${query}` 
+      : "is:unread -category:promotions -category:social";
+
     const res = await gmail.users.messages.list({
       userId: "me",
-      q: "is:unread -category:promotions -category:social", // Only important unread
+      q,
       maxResults,
     });
 
@@ -50,6 +54,46 @@ export async function getUnreadEmails(userId: string, maxResults = 10): Promise<
   } catch (error) {
     console.error("Error fetching emails:", error);
     throw new Error("Failed to fetch emails");
+  }
+}
+
+/**
+ * Fetch a full email thread for context.
+ */
+export async function getEmailThread(userId: string, messageId: string): Promise<string> {
+  const auth = await getAuthClient(userId);
+  const gmail = google.gmail({ version: "v1", auth });
+
+  try {
+    // First get the message to find its threadId
+    const msg = await gmail.users.messages.get({
+      userId: "me",
+      id: messageId,
+      format: "minimal",
+    });
+
+    if (!msg.data.threadId) return "Thread not found";
+
+    // Then fetch the thread
+    const thread = await gmail.users.threads.get({
+      userId: "me",
+      id: msg.data.threadId,
+    });
+
+    const messages = thread.data.messages || [];
+    let threadContent = "";
+
+    for (const m of messages) {
+      const headers = m.payload?.headers || [];
+      const from = headers.find(h => h.name === "From")?.value || "Unknown";
+      const snippet = m.snippet || "";
+      threadContent += `From: ${from}\nMessage: ${snippet}\n\n`;
+    }
+
+    return threadContent;
+  } catch (error) {
+    console.error("Error fetching email thread:", error);
+    return "Failed to fetch email thread.";
   }
 }
 
@@ -92,5 +136,69 @@ export async function sendEmail(userId: string, to: string, subject: string, bod
   } catch (error) {
     console.error("Error sending email:", error);
     throw new Error("Failed to send email");
+  }
+}
+
+/**
+ * Reply to an existing email.
+ */
+export async function replyToEmail(userId: string, messageId: string, body: string): Promise<{ success: boolean; messageId: string }> {
+  const auth = await getAuthClient(userId);
+  const gmail = google.gmail({ version: "v1", auth });
+
+  try {
+    // Fetch the original message to get headers for reply
+    const original = await gmail.users.messages.get({
+      userId: "me",
+      id: messageId,
+      format: "metadata",
+      metadataHeaders: ["Message-ID", "References", "Subject", "From"],
+    });
+
+    const headers = original.data.payload?.headers || [];
+    const origMessageId = headers.find(h => h.name === "Message-ID")?.value || "";
+    let references = headers.find(h => h.name === "References")?.value || "";
+    if (origMessageId) references += (references ? " " : "") + origMessageId;
+    
+    let subject = headers.find(h => h.name === "Subject")?.value || "";
+    if (!subject.startsWith("Re:")) {
+      subject = `Re: ${subject}`;
+    }
+    
+    // The "From" of the original is the "To" of our reply
+    const to = headers.find(h => h.name === "From")?.value || "";
+
+    const emailLines = [
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      `In-Reply-To: ${origMessageId}`,
+      `References: ${references}`,
+      `Content-Type: text/plain; charset="UTF-8"`,
+      "",
+      body,
+    ];
+
+    const rawMessage = emailLines.join("\r\n");
+    const encodedMessage = Buffer.from(rawMessage)
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+
+    const res = await gmail.users.messages.send({
+      userId: "me",
+      requestBody: {
+        raw: encodedMessage,
+        threadId: original.data.threadId,
+      },
+    });
+
+    return {
+      success: true,
+      messageId: res.data.id || "unknown",
+    };
+  } catch (error) {
+    console.error("Error replying to email:", error);
+    throw new Error("Failed to reply to email");
   }
 }
