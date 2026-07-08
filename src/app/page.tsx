@@ -33,6 +33,8 @@ export default function Home() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notesByTopic, setNotesByTopic] = useState<Record<string, any[]>>({});
+  const [showAllChats, setShowAllChats] = useState(false);
+  const [showNotesFullscreen, setShowNotesFullscreen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const isEmptyState = messages.length <= 1;
@@ -293,7 +295,7 @@ export default function Home() {
               Recent Chats
             </h3>
             <ul className="conv-list" style={{ padding: 0, overflowY: 'visible', flexGrow: 0 }}>
-              {conversations.map(conv => (
+              {(showAllChats ? conversations : conversations.slice(0, 7)).map(conv => (
                 <li 
                   key={conv.id} 
                   className={`conv-item ${conversationId === conv.id ? 'active' : ''}`}
@@ -310,58 +312,60 @@ export default function Home() {
                 </li>
               )}
             </ul>
+            {conversations.length > 7 && (
+              <button
+                onClick={() => setShowAllChats(v => !v)}
+                style={{ width: '100%', padding: '8px', background: 'transparent', border: '1px dashed rgba(139,92,246,0.3)', borderRadius: '8px', color: 'var(--accent-color)', fontSize: '0.8rem', cursor: 'pointer', marginTop: '4px', transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,92,246,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                {showAllChats ? '▲ Show Less' : `▼ See ${conversations.length - 7} More`}
+              </button>
+            )}
           </div>
 
           {/* Notes Section */}
           <div>
-            <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--secondary-color)', margin: '0 0 12px 12px', letterSpacing: '0.1em' }}>
-              My Notes
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 12px 12px', paddingRight: '4px' }}>
+              <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--secondary-color)', margin: 0, letterSpacing: '0.1em' }}>
+                My Notes
+              </h3>
+            </div>
             <div className="notes-list" style={{ padding: '0 0 8px 0' }}>
               {Object.keys(notesByTopic).length === 0 ? (
                 <div style={{ padding: '16px', textAlign: 'center', color: 'var(--secondary-color)', fontSize: '0.85rem' }}>
                   No notes saved yet.<br/><br/>Ask me to save a note!
                 </div>
               ) : (
-                Object.entries(notesByTopic).map(([topic, topicNotes]) => (
-                  <div key={topic} style={{ marginBottom: '16px', padding: '0 12px' }}>
-                    <h4 style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--secondary-color)', margin: '0 0 8px 4px', letterSpacing: '0.05em' }}>
-                      {topic}
-                    </h4>
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                      {topicNotes.map(n => (
-                        <li 
-                          key={n.id} 
-                          style={{ 
-                            padding: '10px 12px', 
-                            background: 'rgba(255,255,255,0.03)', 
-                            borderRadius: '8px', 
-                            marginBottom: '6px',
-                            fontSize: '0.85rem',
-                            cursor: 'pointer',
-                            border: '1px solid rgba(255,255,255,0.05)',
-                            transition: 'all 0.2s ease',
-                            lineHeight: '1.4'
-                          }}
-                          onClick={() => {
-                            setInputText(`Regarding my note on ${topic}: "${n.content.substring(0, 50)}..." - `);
-                            if (window.innerWidth < 768) setIsMobileMenuOpen(false);
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--accent-color)';
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                          }}
+                (() => {
+                  // Flatten all notes, show first 3
+                  const allNotes = Object.entries(notesByTopic).flatMap(([topic, notes]) =>
+                    notes.map(n => ({ ...n, topic }))
+                  );
+                  const previewNotes = allNotes.slice(0, 3);
+                  return (
+                    <>
+                      {previewNotes.map(n => (
+                        <div key={n.id} style={{ margin: '0 12px 8px', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.05)', transition: 'all 0.2s ease', lineHeight: '1.4' }}
+                          onClick={() => { setInputText(`Regarding my note on ${n.topic}: "${n.content.substring(0, 50)}..." - `); if (window.innerWidth < 768) setIsMobileMenuOpen(false); }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
                         >
-                          {n.content}
-                        </li>
+                          <div style={{ fontSize: '0.68rem', color: 'var(--secondary-color)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>{n.topic}</div>
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.content}</div>
+                        </div>
                       ))}
-                    </ul>
-                  </div>
-                ))
+                      <button
+                        onClick={() => setShowNotesFullscreen(true)}
+                        style={{ width: 'calc(100% - 24px)', margin: '4px 12px 0', padding: '9px', background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(139,92,246,0.05))', border: '1px solid rgba(139,92,246,0.4)', borderRadius: '8px', color: 'var(--accent-color)', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', letterSpacing: '0.02em' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,92,246,0.2)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(139,92,246,0.05))'}
+                      >
+                        📋 See All Notes ({allNotes.length})
+                      </button>
+                    </>
+                  );
+                })()
               )}
             </div>
           </div>
@@ -390,6 +394,57 @@ export default function Home() {
           </div>
         </div>
       </aside>
+
+      {/* Full-screen Notes Modal */}
+      {showNotesFullscreen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowNotesFullscreen(false); }}
+        >
+          <div style={{ background: 'var(--glass-bg)', backdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)', borderRadius: '24px', width: '100%', maxWidth: '700px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            {/* Modal Header */}
+            <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-color)' }}>📋 My Notes</h2>
+                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--secondary-color)' }}>
+                  {Object.values(notesByTopic).flat().length} notes saved
+                </p>
+              </div>
+              <button className="btn-icon" onClick={() => setShowNotesFullscreen(false)} style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }}>
+                <X size={18} />
+              </button>
+            </div>
+            {/* Modal Body */}
+            <div style={{ overflowY: 'auto', padding: '24px 28px', flexGrow: 1 }}>
+              {Object.keys(notesByTopic).length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--secondary-color)', padding: '40px 0' }}>No notes yet.</div>
+              ) : (
+                Object.entries(notesByTopic).map(([topic, topicNotes]) => (
+                  <div key={topic} style={{ marginBottom: '28px' }}>
+                    <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--accent-color)', margin: '0 0 12px', borderBottom: '1px solid rgba(139,92,246,0.2)', paddingBottom: '6px' }}>
+                      {topic}
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {topicNotes.map((n: any) => (
+                        <div key={n.id}
+                          style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.07)', fontSize: '0.9rem', lineHeight: '1.6', cursor: 'pointer', transition: 'all 0.2s' }}
+                          onClick={() => { setInputText(`Regarding my note on ${topic}: "${n.content.substring(0, 50)}..." - `); setShowNotesFullscreen(false); setIsMobileMenuOpen(false); }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.background = 'rgba(139,92,246,0.08)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                        >
+                          <div style={{ fontSize: '0.78rem', color: 'var(--secondary-color)', marginBottom: '6px' }}>
+                            {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </div>
+                          {n.content}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Chat Area */}
       <section className="main-chat">
