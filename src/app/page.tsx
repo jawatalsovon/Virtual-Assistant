@@ -32,7 +32,6 @@ export default function Home() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notesByTopic, setNotesByTopic] = useState<Record<string, any[]>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   
