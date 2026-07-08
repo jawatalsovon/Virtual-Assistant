@@ -24,7 +24,7 @@ export default function NativeAppBridge() {
           ]
         });
 
-        AppShortcuts.addListener("shortcutItem", (shortcut) => {
+        AppShortcuts.addListener("click", (shortcut) => {
           if (shortcut.id === "quick_talk") {
             router.push("/widget?auto_record=true");
           }

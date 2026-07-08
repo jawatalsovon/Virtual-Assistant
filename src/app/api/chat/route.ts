@@ -40,7 +40,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ reply, conversationId: currentConversationId });
   } catch (error: unknown) {
     console.error("Chat API error:", error);
-    require("fs").writeFileSync("error.log", "Chat API Error: " + (error instanceof Error ? error.stack : String(error)));
     return NextResponse.json({ error: error instanceof Error ? error.message : "Internal server error" }, { status: 500 });
   }
 }
