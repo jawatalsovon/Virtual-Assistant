@@ -187,6 +187,7 @@ export const tools = [
         properties: {
           content: { type: "string", description: "The task description" },
           category: { type: "string", description: "A short 1-2 word category for the task (e.g. 'Work', 'Shopping', 'Personal', 'Study')" },
+          expires_at: { type: "string", description: "Optional ISO 8601 timestamp for when the task should automatically be deleted." },
         },
         required: ["content", "category"],
       },
@@ -278,7 +279,7 @@ export async function executeToolCall(userId: string, name: string, args: Record
       case "deleteNote":
         return await deleteNoteByContent(userId, args.query as string);
       case "addTask":
-        return await addTask(userId, args.content as string, args.category as string);
+        return await addTask(userId, args.content as string, args.category as string, args.expires_at as string | undefined);
       case "getTasks":
         return await getTasks(userId, args.query as string);
       case "updateTask":

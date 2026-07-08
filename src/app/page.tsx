@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Send, Mic, LogOut, MessageSquare, PlusCircle, User, Loader2, Menu, X, Settings, Trash2, CheckCircle, Circle } from "lucide-react";
+import { Send, Mic, LogOut, MessageSquare, PlusCircle, User, Loader2, Menu, X, Settings, Trash2, CheckCircle, Circle, Pencil, Check } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant" | "system" | "tool";
@@ -37,6 +37,10 @@ export default function Home() {
   const [showAllChats, setShowAllChats] = useState(false);
   const [showNotesFullscreen, setShowNotesFullscreen] = useState(false);
   const [showTasksFullscreen, setShowTasksFullscreen] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editNoteContent, setEditNoteContent] = useState("");
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskContent, setEditTaskContent] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const isEmptyState = messages.length <= 1;
@@ -143,6 +147,40 @@ export default function Home() {
     try {
       const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
       if (res.ok) fetchTasks();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const saveNoteEdit = async (id: string, e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/notes/${id}`, {
+        method: 'PUT',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editNoteContent })
+      });
+      if (res.ok) {
+        setEditingNoteId(null);
+        fetchNotes();
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const saveTaskEdit = async (id: string, e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: 'PUT',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editTaskContent })
+      });
+      if (res.ok) {
+        setEditingTaskId(null);
+        fetchTasks();
+      }
     } catch (error) {
       console.error(error);
     }
@@ -409,15 +447,34 @@ export default function Home() {
                           onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
                         >
                           <div style={{ fontSize: '0.68rem', color: 'var(--secondary-color)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>{n.topic}</div>
-                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.content}</div>
-                          <button 
-                            className="btn-icon" 
-                            style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}
-                            onClick={(e) => deleteNote(n.id, e)}
-                            title="Delete note"
-                          >
-                            <Trash2 size={14} color="#ef4444" />
-                          </button>
+                          {editingNoteId === n.id ? (
+                            <input 
+                              type="text" 
+                              value={editNoteContent} 
+                              onChange={(e) => setEditNoteContent(e.target.value)}
+                              onKeyDown={(e) => { if(e.key === 'Enter') saveNoteEdit(n.id, e); }}
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                              style={{ width: '100%', background: 'transparent', border: 'none', color: 'inherit', outline: 'none', fontSize: '0.85rem' }}
+                            />
+                          ) : (
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.content}</div>
+                          )}
+                          
+                          <div style={{ position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '4px' }}>
+                            {editingNoteId === n.id ? (
+                              <button className="btn-icon" style={{ opacity: 0.7 }} onClick={(e) => saveNoteEdit(n.id, e)} title="Save note">
+                                <Check size={14} color="var(--accent-color)" />
+                              </button>
+                            ) : (
+                              <button className="btn-icon" style={{ opacity: 0.5 }} onClick={(e) => { e.stopPropagation(); setEditingNoteId(n.id); setEditNoteContent(n.content); }} title="Edit note">
+                                <Pencil size={14} />
+                              </button>
+                            )}
+                            <button className="btn-icon" style={{ opacity: 0.5 }} onClick={(e) => deleteNote(n.id, e)} title="Delete note">
+                              <Trash2 size={14} color="#ef4444" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                       <button
@@ -466,17 +523,35 @@ export default function Home() {
                           <button onClick={(e) => toggleTask(t.id, !t.is_done, e)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}>
                             {t.is_done ? <CheckCircle size={16} color="var(--accent-color)" /> : <Circle size={16} color="var(--secondary-color)" />}
                           </button>
-                          <div style={{ flexGrow: 1, textDecoration: t.is_done ? 'line-through' : 'none', color: t.is_done ? 'var(--secondary-color)' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {t.content}
+                          {editingTaskId === t.id ? (
+                            <input 
+                              type="text" 
+                              value={editTaskContent} 
+                              onChange={(e) => setEditTaskContent(e.target.value)}
+                              onKeyDown={(e) => { if(e.key === 'Enter') saveTaskEdit(t.id, e); }}
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                              style={{ flexGrow: 1, background: 'transparent', border: 'none', color: 'inherit', outline: 'none', fontSize: '0.85rem' }}
+                            />
+                          ) : (
+                            <div style={{ flexGrow: 1, textDecoration: t.is_done ? 'line-through' : 'none', color: t.is_done ? 'var(--secondary-color)' : 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {t.content}
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: '4px', opacity: 0.5 }}>
+                            {editingTaskId === t.id ? (
+                              <button className="btn-icon" style={{ padding: '2px' }} onClick={(e) => saveTaskEdit(t.id, e)} title="Save task">
+                                <Check size={14} color="var(--accent-color)" />
+                              </button>
+                            ) : (
+                              <button className="btn-icon" style={{ padding: '2px' }} onClick={(e) => { e.stopPropagation(); setEditingTaskId(t.id); setEditTaskContent(t.content); }} title="Edit task">
+                                <Pencil size={14} />
+                              </button>
+                            )}
+                            <button className="btn-icon" style={{ padding: '2px' }} onClick={(e) => deleteTask(t.id, e)} title="Delete task">
+                              <Trash2 size={14} color="#ef4444" />
+                            </button>
                           </div>
-                          <button 
-                            className="btn-icon" 
-                            style={{ opacity: 0.5, padding: '2px' }}
-                            onClick={(e) => deleteTask(t.id, e)}
-                            title="Delete task"
-                          >
-                            <Trash2 size={14} color="#ef4444" />
-                          </button>
                         </div>
                       ))}
                       <button
@@ -558,15 +633,33 @@ export default function Home() {
                           <div style={{ fontSize: '0.78rem', color: 'var(--secondary-color)', marginBottom: '6px' }}>
                             {new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </div>
-                          {n.content}
-                          <button 
-                            className="btn-icon" 
-                            style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.7, padding: '8px' }}
-                            onClick={(e) => deleteNote(n.id, e)}
-                            title="Delete note"
-                          >
-                            <Trash2 size={16} color="#ef4444" />
-                          </button>
+                          {editingNoteId === n.id ? (
+                            <input 
+                              type="text" 
+                              value={editNoteContent} 
+                              onChange={(e) => setEditNoteContent(e.target.value)}
+                              onKeyDown={(e) => { if(e.key === 'Enter') saveNoteEdit(n.id, e); }}
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                              style={{ width: '100%', background: 'transparent', border: 'none', color: 'inherit', outline: 'none', fontSize: '0.9rem', padding: 0 }}
+                            />
+                          ) : (
+                            n.content
+                          )}
+                          <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '8px', opacity: 0.7 }}>
+                            {editingNoteId === n.id ? (
+                              <button className="btn-icon" style={{ padding: '8px' }} onClick={(e) => saveNoteEdit(n.id, e)} title="Save note">
+                                <Check size={16} color="var(--accent-color)" />
+                              </button>
+                            ) : (
+                              <button className="btn-icon" style={{ padding: '8px' }} onClick={(e) => { e.stopPropagation(); setEditingNoteId(n.id); setEditNoteContent(n.content); }} title="Edit note">
+                                <Pencil size={16} />
+                              </button>
+                            )}
+                            <button className="btn-icon" style={{ padding: '8px' }} onClick={(e) => deleteNote(n.id, e)} title="Delete note">
+                              <Trash2 size={16} color="#ef4444" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -612,17 +705,35 @@ export default function Home() {
                           <button onClick={(e) => toggleTask(t.id, !t.is_done, e)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}>
                             {t.is_done ? <CheckCircle size={20} color="var(--accent-color)" /> : <Circle size={20} color="var(--secondary-color)" />}
                           </button>
-                          <div style={{ flexGrow: 1, textDecoration: t.is_done ? 'line-through' : 'none', color: t.is_done ? 'var(--secondary-color)' : 'inherit' }}>
-                            {t.content}
+                          {editingTaskId === t.id ? (
+                            <input 
+                              type="text" 
+                              value={editTaskContent} 
+                              onChange={(e) => setEditTaskContent(e.target.value)}
+                              onKeyDown={(e) => { if(e.key === 'Enter') saveTaskEdit(t.id, e); }}
+                              onClick={(e) => e.stopPropagation()}
+                              autoFocus
+                              style={{ flexGrow: 1, background: 'transparent', border: 'none', color: 'inherit', outline: 'none', fontSize: '0.9rem' }}
+                            />
+                          ) : (
+                            <div style={{ flexGrow: 1, textDecoration: t.is_done ? 'line-through' : 'none', color: t.is_done ? 'var(--secondary-color)' : 'inherit' }}>
+                              {t.content}
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: '8px', opacity: 0.7 }}>
+                            {editingTaskId === t.id ? (
+                              <button className="btn-icon" style={{ padding: '8px' }} onClick={(e) => saveTaskEdit(t.id, e)} title="Save task">
+                                <Check size={16} color="var(--accent-color)" />
+                              </button>
+                            ) : (
+                              <button className="btn-icon" style={{ padding: '8px' }} onClick={(e) => { e.stopPropagation(); setEditingTaskId(t.id); setEditTaskContent(t.content); }} title="Edit task">
+                                <Pencil size={16} />
+                              </button>
+                            )}
+                            <button className="btn-icon" style={{ padding: '8px' }} onClick={(e) => deleteTask(t.id, e)} title="Delete task">
+                              <Trash2 size={16} color="#ef4444" />
+                            </button>
                           </div>
-                          <button 
-                            className="btn-icon" 
-                            style={{ opacity: 0.7, padding: '8px' }}
-                            onClick={(e) => deleteTask(t.id, e)}
-                            title="Delete task"
-                          >
-                            <Trash2 size={16} color="#ef4444" />
-                          </button>
                         </div>
                       ))}
                     </div>

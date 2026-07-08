@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
   content TEXT NOT NULL,
   category TEXT DEFAULT 'General',
   is_done BOOLEAN DEFAULT FALSE,
+  expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );

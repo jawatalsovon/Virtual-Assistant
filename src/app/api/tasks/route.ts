@@ -9,9 +9,16 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Lazy deletion
+  await supabaseAdmin
+    .from("tasks")
+    .delete()
+    .eq("user_id", session.user.id)
+    .lt("expires_at", new Date().toISOString());
+
   const { data: tasks, error } = await supabaseAdmin
     .from("tasks")
-    .select("id, content, category, is_done, created_at")
+    .select("id, content, category, is_done, expires_at, created_at")
     .eq("user_id", session.user.id)
     .order("created_at", { ascending: false });
 
@@ -28,15 +35,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { content, category } = await req.json();
+  const { content, category, expires_at } = await req.json();
   if (!content) {
     return NextResponse.json({ error: "Content required" }, { status: 400 });
   }
 
+  const insertData: any = { user_id: session.user.id, content, category: category || "General" };
+  if (expires_at) insertData.expires_at = expires_at;
+
   const { data, error } = await supabaseAdmin
     .from("tasks")
-    .insert({ user_id: session.user.id, content, category: category || "General" })
-    .select("id, content, category, is_done, created_at")
+    .insert(insertData)
+    .select("id, content, category, is_done, expires_at, created_at")
     .single();
 
   if (error) {

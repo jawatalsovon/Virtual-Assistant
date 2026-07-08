@@ -5,13 +5,17 @@ export interface Task {
   content: string;
   category: string;
   is_done: boolean;
+  expires_at?: string;
   created_at: string;
 }
 
-export async function addTask(userId: string, content: string, category: string = "General"): Promise<string> {
+export async function addTask(userId: string, content: string, category: string = "General", expires_at?: string): Promise<string> {
+  const insertData: any = { user_id: userId, content, category };
+  if (expires_at) insertData.expires_at = expires_at;
+
   const { error } = await supabaseAdmin
     .from("tasks")
-    .insert({ user_id: userId, content, category });
+    .insert(insertData);
 
   if (error) {
     console.error("Error adding task:", error);
@@ -21,9 +25,16 @@ export async function addTask(userId: string, content: string, category: string 
 }
 
 export async function getTasks(userId: string, query?: string): Promise<string> {
+  // Lazy deletion: delete expired tasks first
+  await supabaseAdmin
+    .from("tasks")
+    .delete()
+    .eq("user_id", userId)
+    .lt("expires_at", new Date().toISOString());
+
   let q = supabaseAdmin
     .from("tasks")
-    .select("id, content, category, is_done, created_at")
+    .select("id, content, category, is_done, expires_at, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
