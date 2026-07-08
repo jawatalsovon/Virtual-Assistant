@@ -40,6 +40,16 @@ export default function Home() {
   const audioChunksRef = useRef<Blob[]>([]);
   const chatHistoryRef = useRef<HTMLDivElement>(null);
 
+  // Preload voices for TTS to avoid empty voices array on mobile/safari
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+  }, []);
+
   // Auth Protection
   useEffect(() => {
     if (status === "unauthenticated") {

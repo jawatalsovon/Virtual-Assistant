@@ -391,6 +391,7 @@ body {
   font-size: 1rem;
   outline: none;
   color: var(--text-primary);
+  min-width: 0;
 }
 
 .text-input::placeholder {
@@ -409,6 +410,7 @@ body {
   align-items: center;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .btn-icon:hover {
