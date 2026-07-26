@@ -2,14 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Settings, ArrowLeft, Send, Volume2 } from "lucide-react";
+import { Settings, ArrowLeft, Send, Volume2, Zap, Copy, Check } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
-  
+
   // Telegram State
   const [telegramChatId, setTelegramChatId] = useState("");
   const [telegramStatus, setTelegramStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+
+  // Shortcut Token State
+  const [hasToken, setHasToken] = useState(false);
+  const [newToken, setNewToken] = useState("");
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Voice State
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -35,7 +41,43 @@ export default function SettingsPage() {
     
     const savedSpeed = localStorage.getItem("nova_voice_speed");
     if (savedSpeed) setVoiceSpeed(parseFloat(savedSpeed));
+
+    fetch("/api/shortcut-token")
+      .then((res) => res.json())
+      .then((data) => setHasToken(!!data.exists))
+      .catch(() => {});
   }, []);
+
+  const handleGenerateToken = async () => {
+    setTokenLoading(true);
+    try {
+      const res = await fetch("/api/shortcut-token", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setNewToken(data.token);
+        setHasToken(true);
+      }
+    } finally {
+      setTokenLoading(false);
+    }
+  };
+
+  const handleRevokeToken = async () => {
+    setTokenLoading(true);
+    try {
+      await fetch("/api/shortcut-token", { method: "DELETE" });
+      setHasToken(false);
+      setNewToken("");
+    } finally {
+      setTokenLoading(false);
+    }
+  };
+
+  const handleCopyToken = async () => {
+    await navigator.clipboard.writeText(newToken);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleSaveTelegram = async () => {
     if (!telegramChatId.trim()) return;
@@ -136,6 +178,103 @@ export default function SettingsPage() {
           </div>
           {telegramStatus === "success" && <p style={{ color: "green", fontSize: "0.9rem", margin: 0 }}>Successfully linked!</p>}
           {telegramStatus === "error" && <p style={{ color: "red", fontSize: "0.9rem", margin: 0 }}>Failed to link. Please try again.</p>}
+        </section>
+
+        <hr style={{ borderTop: "1px solid var(--border-color)", borderBottom: "none" }} />
+
+        {/* Shortcut / Automation Token */}
+        <section style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <h2 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: "8px" }}>
+            <Zap size={20} />
+            iOS Shortcut / Automation Access
+          </h2>
+          <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)" }}>
+            Generate a token to let an iOS Shortcut (or any other automation) talk to Nova directly,
+            without opening the app. Treat this token like a password &mdash; anyone with it can act as you.
+          </p>
+
+          {newToken && (
+            <div style={{
+              padding: "12px",
+              borderRadius: "8px",
+              background: "rgba(124, 58, 237, 0.08)",
+              border: "1px solid var(--accent-color)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}>
+              <p style={{ fontSize: "0.85rem", margin: 0, fontWeight: 600 }}>
+                Copy this now &mdash; it won&apos;t be shown again:
+              </p>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <code style={{
+                  flex: 1,
+                  padding: "8px 10px",
+                  borderRadius: "6px",
+                  background: "rgba(0,0,0,0.05)",
+                  fontSize: "0.8rem",
+                  overflowX: "auto",
+                  whiteSpace: "nowrap",
+                }}>
+                  {newToken}
+                </code>
+                <button
+                  onClick={handleCopyToken}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "var(--accent-color)",
+                    color: "white",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={handleGenerateToken}
+              disabled={tokenLoading}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "8px",
+                border: "none",
+                background: "var(--accent-color)",
+                color: "white",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              {tokenLoading ? "Working..." : hasToken ? "Generate New Token" : "Generate Token"}
+            </button>
+            {hasToken && (
+              <button
+                onClick={handleRevokeToken}
+                disabled={tokenLoading}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border-color)",
+                  background: "transparent",
+                  cursor: "pointer",
+                }}
+              >
+                Revoke
+              </button>
+            )}
+          </div>
+          {hasToken && !newToken && (
+            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: 0 }}>
+              An active token exists. Generating a new one immediately revokes the old one.
+            </p>
+          )}
         </section>
 
         <hr style={{ borderTop: "1px solid var(--border-color)", borderBottom: "none" }} />
