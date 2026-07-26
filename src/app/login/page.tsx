@@ -16,6 +16,15 @@ export default function LoginPage() {
     
     if (Capacitor.isNativePlatform()) {
       try {
+        await GoogleSignIn.initialize({
+          clientId: "280495370233-h941t88cvcdi6neh4onf9qfrd7ikep3p.apps.googleusercontent.com",
+          scopes: [
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/contacts.readonly",
+          ],
+        });
         const result = await GoogleSignIn.signIn();
         const { serverAuthCode, idToken } = result;
         
