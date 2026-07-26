@@ -21,7 +21,9 @@ export async function getAuthClient(userId: string) {
     .select("refresh_token")
     .eq("userId", userId)
     .eq("provider", "google")
-    .single();
+    .not("refresh_token", "is", null)
+    .limit(1)
+    .maybeSingle();
 
   if (error || !data?.refresh_token) {
     console.error("Error fetching refresh token:", error);

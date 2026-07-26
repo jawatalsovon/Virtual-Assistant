@@ -90,13 +90,17 @@ export const authOptions: NextAuthOptions = {
           
           Object.keys(accountData).forEach(key => accountData[key] === undefined && delete accountData[key]);
 
+          // Match by (userId, provider) rather than (provider, providerAccountId):
+          // Google can return a different `sub` for the same account across
+          // different sign-in flows (native vs web), and each app-user should
+          // only ever have one linked Google account row.
           const { data: existingAccount } = await supabaseAdmin
             .schema("next_auth")
             .from("accounts")
             .select("id")
+            .eq("userId", userId)
             .eq("provider", "google")
-            .eq("providerAccountId", payload.sub)
-            .single();
+            .maybeSingle();
 
           if (existingAccount) {
             await supabaseAdmin.schema("next_auth").from("accounts").update(accountData).eq("id", existingAccount.id);
