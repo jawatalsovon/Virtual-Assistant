@@ -12,7 +12,11 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
       authorization: {
         params: {
-          prompt: "consent",
+          // "consent" alone re-shows the consent screen for whichever Google
+          // account is already the ambient signed-in identity in the browser --
+          // it does NOT show an account chooser. "select_account" is required
+          // to let the user actually pick a different account.
+          prompt: "select_account consent",
           access_type: "offline",
           response_type: "code",
           scope: "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/contacts.readonly",
