@@ -61,23 +61,34 @@ export async function getConversationMessages(conversationId: string): Promise<C
 }
 
 export async function addMessage(conversationId: string, message: ChatMessage): Promise<void> {
+  await addMessages(conversationId, [message]);
+}
+
+/**
+ * Persist multiple messages from a single agent turn in one round trip,
+ * plus one conversation timestamp update. Intended to be called after the
+ * response has already been sent to the client (see runAgent's use of
+ * next/server's `after()`), so this never sits on the request's critical path.
+ */
+export async function addMessages(conversationId: string, messages: ChatMessage[]): Promise<void> {
+  if (messages.length === 0) return;
+
   const { error } = await supabaseAdmin
     .from("messages")
-    .insert([{
+    .insert(messages.map((message) => ({
       conversation_id: conversationId,
       role: message.role,
       content: message.content,
       name: message.name,
       tool_calls: message.tool_calls,
       tool_call_id: message.tool_call_id,
-    }]);
+    })));
 
   if (error) {
-    console.error("Error adding message:", error);
-    throw new Error("Failed to add message");
+    console.error("Error adding messages:", error);
+    throw new Error("Failed to add messages");
   }
 
-  // Update conversation updated_at
   await supabaseAdmin
     .from("conversations")
     .update({ updated_at: new Date().toISOString() })

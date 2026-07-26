@@ -1,5 +1,6 @@
+import { after } from "next/server";
 import { tools, executeToolCall } from "./agent-tools";
-import { getConversationMessages, addMessage } from "./conversation";
+import { getConversationMessages, addMessages } from "./conversation";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY!;
 const LLM_MODEL = process.env.LLM_MODEL || "deepseek/deepseek-v4-flash";
@@ -60,17 +61,26 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3, de
  * Now fully persists conversation state to Supabase.
  */
 export async function runAgent(userId: string, userName: string, conversationId: string, userMessageText: string): Promise<string> {
-  // 1. Add user message to DB
-  const userMsg: ChatMessage = { role: "user", content: userMessageText };
-  await addMessage(conversationId, userMsg);
-
-  // 2. Load full history from DB
+  // Load prior history (the only DB round trip on the critical path -- we
+  // need it before we can call the LLM).
   const history = await getConversationMessages(conversationId);
-  
+
+  const userMsg: ChatMessage = { role: "user", content: userMessageText };
   const messages: ChatMessage[] = [
     { role: "system", content: SYSTEM_PROMPT(userName) },
     ...history,
+    userMsg,
   ];
+
+  // Everything generated this turn is persisted in one batched write via
+  // `after()`, which runs once the response has already been sent to the
+  // client -- so DB latency never sits on the reply's critical path.
+  const newMessages: ChatMessage[] = [userMsg];
+  after(() =>
+    addMessages(conversationId, newMessages).catch((err) => {
+      console.error("Failed to persist conversation turn:", err);
+    })
+  );
 
   let iterations = 0;
   const MAX_ITERATIONS = 4;
@@ -109,14 +119,14 @@ export async function runAgent(userId: string, userName: string, conversationId:
       throw new Error("No content in LLM response");
     }
 
-    // Add assistant's message to history array AND database
+    // Add assistant's message to the in-memory history; persisted later via `after()`.
     const assistantMsg: ChatMessage = {
       role: "assistant",
       content: responseMessage.content || null,
       tool_calls: responseMessage.tool_calls,
     };
     messages.push(assistantMsg);
-    await addMessage(conversationId, assistantMsg);
+    newMessages.push(assistantMsg);
 
     // If the LLM didn't call any tools, we are done
     if (!responseMessage.tool_calls || responseMessage.tool_calls.length === 0) {
@@ -127,9 +137,9 @@ export async function runAgent(userId: string, userName: string, conversationId:
     const toolPromises = responseMessage.tool_calls.map(async (toolCall: any) => {
       const functionName = toolCall.function.name;
       const args = JSON.parse(toolCall.function.arguments);
-      
+
       const result = await executeToolCall(userId, functionName, args);
-      
+
       const toolMsg: ChatMessage = {
         role: "tool",
         tool_call_id: toolCall.id,
@@ -140,11 +150,11 @@ export async function runAgent(userId: string, userName: string, conversationId:
     });
 
     const toolMessages = await Promise.all(toolPromises);
-    
-    // Add messages to history sequentially to maintain order
+
+    // Order matters for the LLM's context, not for persistence (that's batched at the end).
     for (const toolMsg of toolMessages) {
       messages.push(toolMsg);
-      await addMessage(conversationId, toolMsg);
+      newMessages.push(toolMsg);
     }
   }
 
