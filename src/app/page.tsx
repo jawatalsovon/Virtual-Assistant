@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { Capacitor } from "@capacitor/core";
+import { GoogleSignIn } from "@capawesome/capacitor-google-sign-in";
 import { Send, Mic, LogOut, MessageSquare, PlusCircle, User, Loader2, Menu, X, Settings, Trash2, CheckCircle, Circle, Pencil, Check } from "lucide-react";
 
 interface Message {
@@ -291,6 +293,17 @@ export default function Home() {
     utterance.onend = () => setIsAssistantSpeaking(false);
     utterance.onerror = () => setIsAssistantSpeaking(false);
     window.speechSynthesis.speak(utterance);
+  };
+
+  const handleSignOut = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await GoogleSignIn.signOut();
+      } catch (err) {
+        console.error("Failed to clear native Google credential state:", err);
+      }
+    }
+    signOut();
   };
 
   const startNewConversation = () => {
@@ -679,7 +692,7 @@ export default function Home() {
               <button className="btn-icon" onClick={() => router.push("/settings")} title="Settings">
                 <Settings size={18} />
               </button>
-              <button className="btn-icon" onClick={() => signOut()} title="Sign out">
+              <button className="btn-icon" onClick={handleSignOut} title="Sign out">
                 <LogOut size={18} />
               </button>
             </div>

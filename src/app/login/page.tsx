@@ -16,6 +16,14 @@ export default function LoginPage() {
     
     if (Capacitor.isNativePlatform()) {
       try {
+        // Clear any previously remembered Android credential so the account
+        // picker is always shown, instead of silently reusing the last account.
+        try {
+          await GoogleSignIn.signOut();
+        } catch {
+          // Nothing to clear on first-ever sign-in; safe to ignore.
+        }
+
         await GoogleSignIn.initialize({
           clientId: "280495370233-h941t88cvcdi6neh4onf9qfrd7ikep3p.apps.googleusercontent.com",
           scopes: [
